@@ -317,6 +317,25 @@ input.pf{display:none;}
 .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;}
 .sync-dot.syncing{background:var(--amber);animation:sdpulse 1s infinite;}
 @keyframes sdpulse{0%,100%{opacity:1}50%{opacity:0.4}}
+
+/* ITEMS PANEL */
+.items-panel{border-top:1px solid var(--border);padding:13px 14px;}
+.items-parsing{display:flex;align-items:center;gap:8px;font-size:0.72rem;color:var(--muted);}
+.item-row{display:grid;grid-template-columns:1fr 70px 110px 22px;gap:5px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);}
+.item-row:last-child{border:none;}
+.item-name-in{border:none;background:none;font-size:0.74rem;font-family:inherit;color:var(--ink);width:100%;outline:none;padding:2px 3px;border-radius:4px;}
+.item-name-in:focus{background:var(--bg2);}
+.item-price-in{border:1px solid var(--border);border-radius:6px;background:var(--bg2);font-size:0.71rem;font-family:'JetBrains Mono',monospace;text-align:right;width:100%;padding:3px 5px;outline:none;}
+.item-person-sel{font-size:0.63rem;border:1px solid var(--border);border-radius:6px;background:var(--surface);padding:3px 4px;width:100%;font-family:inherit;outline:none;}
+.item-del-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.7rem;line-height:1;padding:2px;}
+.item-del-btn:hover{color:var(--red);}
+.items-summary{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px;}
+.isumchip{font-size:0.64rem;font-weight:700;padding:4px 9px;border-radius:7px;font-family:'JetBrains Mono',monospace;}
+.isumchip.me{background:var(--bg3);color:var(--muted);}
+.isumchip.owed{background:var(--amber-soft);color:var(--amber);}
+.isumchip.shared{background:var(--accent-soft);color:var(--accent);}
+.apply-split-btn{margin-top:10px;width:100%;padding:9px;background:var(--green);color:#fff;border:none;border-radius:9px;font-family:inherit;font-size:0.75rem;font-weight:700;cursor:pointer;transition:opacity 0.15s;}
+.apply-split-btn:hover{opacity:0.88;}
 </style>
 </head>
 <body>
@@ -676,6 +695,13 @@ function bCard(e,i){
         <div class="rp" id="rp-${i}"></div>
       </div>
     </div>
+    <div class="items-panel" id="ip-${i}" style="display:none">
+      <div class="slbl">Receipt items — assign each to a person</div>
+      <div id="il-${i}"></div>
+      <button class="ab" style="margin-top:6px" onclick="addItemRow(${i})">+ Add item</button>
+      <div class="items-summary" id="isum-${i}"></div>
+      <button class="apply-split-btn" onclick="applyItemSplit(${i})">Apply this split to the card →</button>
+    </div>
     <div class="ecfoot">
       <div class="fl" id="fl-${i}"></div>
       <div style="display:flex;gap:6px;flex-shrink:0">
@@ -736,14 +762,31 @@ function oPhoto(i,input){
   if(file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf')){
     if(!sp[i])sp[i]={};sp[i].pdfName=file.name;delete sp[i].photo;pSp();
     sPDFAttach(i,file.name,null);
+    getPDFText(file).then(text=>{
+      fetchParsedItems(i,{text,amount:fld[i]?.amount});
+    }).catch(()=>{});
     parsePDF(file).then(exp=>{
       if(!exp||!exp.amount)return;
       if(!sp[i])sp[i]={};sp[i].pdfAmt=exp.amount;pSp();
       sPDFAttach(i,file.name,exp.amount);
     }).catch(()=>{});
   }else{
-    const r=new FileReader();r.onload=e=>{sPhoto(i,e.target.result);if(!sp[i])sp[i]={};sp[i].photo=e.target.result;delete sp[i].pdfName;pSp();};r.readAsDataURL(file);
+    const r=new FileReader();r.onload=e=>{
+      sPhoto(i,e.target.result);
+      if(!sp[i])sp[i]={};sp[i].photo=e.target.result;delete sp[i].pdfName;pSp();
+      const base64=e.target.result.split(',')[1];
+      const mimeType=file.type||'image/jpeg';
+      fetchParsedItems(i,{image:base64,mimeType,amount:fld[i]?.amount});
+    };r.readAsDataURL(file);
   }
+}
+
+async function getPDFText(file){
+  const ab=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:ab}).promise;
+  let text='';
+  for(let p=1;p<=pdf.numPages;p++){const page=await pdf.getPage(p);const tc=await page.getTextContent();text+=tc.items.map(x=>x.str).join(' ')+'\n';}
+  return text;
 }
 function sPhoto(i,url){const col=document.getElementById(`pc-${i}`);if(!col)return;document.getElementById(`pm-${i}`)?.remove();col.querySelector('.pdf-ind')?.remove();if(!col.querySelector('img.rc')){const img=Object.assign(document.createElement('img'),{className:'rc',src:url});const g=Object.assign(document.createElement('div'),{className:'pgrd'});col.prepend(g);col.prepend(img);}else col.querySelector('img.rc').src=url;}
 function sPDFAttach(i,name,amt){
@@ -913,6 +956,98 @@ function vb(name,amt,exp){const note=encodeURIComponent(`${exp?.merchant||'expen
 function dRange(d){try{const dt=new Date(d+'T12:00:00'),m=new Date(dt),p=new Date(dt);m.setDate(dt.getDate()-3);p.setDate(dt.getDate()+3);const f=x=>x.toLocaleDateString('en-US',{month:'short',day:'numeric'});return`${f(m)}–${f(p)}`;}catch{return'±3 days';}}
 function tSMS(){smsOn=!smsOn;document.getElementById('pill').classList.toggle('on',smsOn);document.getElementById('smsg').classList.toggle('show',smsOn);}
 function gp(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));document.getElementById(`page-${name}`).classList.add('active');btn?.classList.add('active');if(name==='history')rHist();if(name==='recap')rRecap();if(name==='transactions')rtt();}
+
+// ITEM PARSING
+async function fetchParsedItems(i,payload){
+  const panel=document.getElementById(`ip-${i}`);
+  panel.style.display='block';
+  document.getElementById(`il-${i}`).innerHTML='<div class="items-parsing"><div class="ld" style="border-color:rgba(0,0,0,0.12);border-top-color:var(--muted)"></div> Parsing receipt…</div>';
+  try{
+    const res=await fetch('/api/parse-receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const data=await res.json();
+    if(data.items?.length)renderItemRows(i,data.items);
+    else document.getElementById(`il-${i}`).innerHTML='<div style="font-size:0.7rem;color:var(--muted)">Could not extract items — add them manually.</div>';
+  }catch(e){
+    document.getElementById(`il-${i}`).innerHTML='<div style="font-size:0.7rem;color:var(--red)">Parse failed — add items manually.</div>';
+  }
+}
+
+function getItemPeople(i){
+  const pl=document.getElementById(`pl-${i}`);if(!pl)return[];
+  return Array.from(pl.querySelectorAll('input[type="text"]')).map(inp=>inp.value.trim()).filter(Boolean);
+}
+
+function itemRowHTML(i,n,name='',price=0){
+  const people=getItemPeople(i);
+  const opts=`<option value="mine">Mine (keep)</option><option value="shared" selected>Split evenly</option>${people.map(p=>`<option value="${p.replace(/"/g,'&quot;')}">${p}</option>`).join('')}`;
+  return`<div class="item-row" id="irow-${i}-${n}"><input class="item-name-in" value="${name.replace(/"/g,'&quot;').replace(/</g,'&lt;')}" placeholder="Item name" oninput="updateItemSummary(${i})"/><input class="item-price-in" type="number" step="0.01" min="0" value="${(+price).toFixed(2)}" oninput="updateItemSummary(${i})"/><select class="item-person-sel" onchange="updateItemSummary(${i})">${opts}</select><button class="item-del-btn" onclick="delItemRow(${i},${n})">✕</button></div>`;
+}
+
+function renderItemRows(i,items){
+  document.getElementById(`il-${i}`).innerHTML=items.map((item,n)=>itemRowHTML(i,n,item.name,item.price)).join('');
+  updateItemSummary(i);
+}
+
+function addItemRow(i){
+  const il=document.getElementById(`il-${i}`);
+  const n=il.querySelectorAll('.item-row').length;
+  const d=document.createElement('div');
+  d.innerHTML=itemRowHTML(i,n);
+  il.appendChild(d.firstElementChild);
+  updateItemSummary(i);
+}
+
+function delItemRow(i,n){document.getElementById(`irow-${i}-${n}`)?.remove();updateItemSummary(i);}
+
+function updateItemSummary(i){
+  const il=document.getElementById(`il-${i}`);if(!il)return;
+  const irows=il.querySelectorAll('.item-row');
+  const totals={};let mineTotal=0,sharedTotal=0;const sharedPeople=new Set();
+  irows.forEach(row=>{
+    const price=parseFloat(row.querySelector('.item-price-in')?.value)||0;
+    const person=row.querySelector('.item-person-sel')?.value||'mine';
+    if(person==='mine')mineTotal+=price;
+    else if(person==='shared')sharedTotal+=price;
+    else{totals[person]=(totals[person]||0)+price;sharedPeople.add(person);}
+  });
+  const sharedCount=Math.max(sharedPeople.size,1);
+  const sharedEach=sharedTotal/sharedCount;
+  let chips='';
+  if(mineTotal>0)chips+=`<span class="isumchip me">Mine $${mineTotal.toFixed(2)}</span>`;
+  Object.entries(totals).forEach(([name,amt])=>{chips+=`<span class="isumchip owed">${name} owes $${(amt+sharedEach).toFixed(2)}</span>`;});
+  if(sharedTotal>0&&sharedPeople.size===0)chips+=`<span class="isumchip shared">Shared $${sharedTotal.toFixed(2)} — assign people</span>`;
+  else if(sharedTotal>0)chips+=`<span class="isumchip shared">Shared ÷${sharedCount} = $${sharedEach.toFixed(2)} ea</span>`;
+  document.getElementById(`isum-${i}`).innerHTML=chips;
+}
+
+function applyItemSplit(i){
+  const il=document.getElementById(`il-${i}`);if(!il)return;
+  const irows=il.querySelectorAll('.item-row');
+  const totals={};let sharedTotal=0;const sharedPeople=new Set();
+  irows.forEach(row=>{
+    const price=parseFloat(row.querySelector('.item-price-in')?.value)||0;
+    const person=row.querySelector('.item-person-sel')?.value||'mine';
+    if(person==='mine')return;
+    else if(person==='shared')sharedTotal+=price;
+    else{totals[person]=(totals[person]||0)+price;sharedPeople.add(person);}
+  });
+  const sharedCount=Math.max(sharedPeople.size,1);
+  const sharedEach=sharedTotal/sharedCount;
+  sharedPeople.forEach(p=>{totals[p]=(totals[p]||0)+sharedEach;});
+  const entries=Object.entries(totals).map(([name,owes])=>({name,owes}));
+  if(!entries.length){alert('Assign at least one item to a person first.');return;}
+  sMode(i,'item');
+  const pl=document.getElementById(`pl-${i}`);if(!pl)return;
+  pl.innerHTML='';
+  entries.forEach((e,n)=>{
+    const d=document.createElement('div');d.className='pr';d.id=`pr-${i}-${n}`;
+    d.innerHTML=`<input type="text" placeholder="Name" oninput="calc(${i})" value="${e.name.replace(/"/g,'&quot;')}"/><input type="number" class="nb" placeholder="0.00" step="0.01" oninput="calc(${i})" value="${e.owes.toFixed(2)}"/><button class="rb" onclick="rP(${i},${n})">×</button>`;
+    pl.appendChild(d);
+  });
+  pMap[i]=entries.length;
+  calc(i);
+  document.getElementById(`ip-${i}`).style.display='none';
+}
 
 // SESSIONS
 const SESS_KEY='sc_sessions',MAX_SESS=5;
