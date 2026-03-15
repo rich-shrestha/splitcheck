@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SplitCheck · Upload</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #faf8f4;
+  --ink: #18181b;
+  --surface: #ffffff;
+  --border: #e4e0d8;
+  --accent: #1a1a2e;
+  --lime: #c8f135;
+  --muted: #8a8680;
+  --red: #e8452a;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: 'Bricolage Grotesque', sans-serif;
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  padding: 32px 20px;
+}
+.shell { width: 100%; max-width: 480px; }
+
+.wordmark { font-size: 2rem; font-weight: 800; letter-spacing: -0.04em; margin-bottom: 4px; }
+.wordmark span { color: var(--red); }
+.tagline { font-size: 0.72rem; color: var(--muted); font-family: 'DM Mono', monospace; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 36px; }
+
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 20px; padding: 24px; margin-bottom: 12px;
+  box-shadow: var(--shadow);
+}
+.card-title {
+  font-size: 0.62rem; font-weight: 600; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--muted);
+  margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+}
+.card-title::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* Drop zone */
+#dz {
+  border: 2px dashed var(--border); border-radius: 14px;
+  padding: 40px 20px; text-align: center; cursor: pointer;
+  transition: all 0.18s; background: var(--bg);
+}
+#dz:hover, #dz.over { border-color: var(--accent); background: #f0f0f8; }
+#dz.loaded { border-color: #22c55e; background: #f0fdf4; border-style: solid; }
+#dz .dz-icon { font-size: 2rem; margin-bottom: 10px; display: block; }
+#dz p { font-size: 0.8rem; color: var(--muted); line-height: 1.7; }
+#dz strong { color: var(--ink); }
+#dz .browse { color: var(--accent); font-weight: 600; cursor: pointer; }
+#fi { display: none; }
+
+.hint { font-size: 0.68rem; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 10px; line-height: 1.6; }
+.hint strong { color: var(--ink); }
+
+/* Fields */
+.field { margin-bottom: 10px; }
+.field label { display: block; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+.field input {
+  width: 100%; padding: 10px 13px; border: 1px solid var(--border); border-radius: 10px;
+  font-family: 'DM Mono', monospace; font-size: 0.84rem; color: var(--ink);
+  background: var(--bg); outline: none; transition: border-color 0.15s;
+}
+.field input:focus { border-color: var(--accent); }
+.field input::placeholder { color: var(--muted); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* Toggle */
+.toggle-row { display: flex; align-items: center; gap: 10px; cursor: pointer; margin-bottom: 14px; }
+.pill { width: 36px; height: 20px; border-radius: 99px; background: var(--border); position: relative; transition: background 0.2s; flex-shrink: 0; }
+.pill::after { content:''; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; transition:transform 0.2s; box-shadow:0 1px 3px rgba(0,0,0,0.2); }
+.pill.on { background: var(--accent); }
+.pill.on::after { transform:translateX(16px); }
+.toggle-label { font-size: 0.8rem; font-weight: 500; }
+.sms-fields { display: none; }
+.sms-fields.show { display: block; }
+.sms-note { font-size: 0.66rem; color: var(--muted); font-family: 'DM Mono', monospace; line-height: 1.6; margin-top: 8px; }
+.sms-note a { color: var(--accent); }
+
+/* Preview chip */
+#preview {
+  margin-top: 10px; padding: 9px 13px; border-radius: 9px;
+  background: var(--bg); border: 1px solid var(--border);
+  font-size: 0.74rem; font-family: 'DM Mono', monospace;
+  color: var(--muted); display: none; line-height: 1.6;
+}
+#preview .flag { color: var(--red); font-weight: 500; }
+
+/* Button */
+#go {
+  width: 100%; padding: 15px; background: var(--accent); color: #fff;
+  border: none; border-radius: 14px; font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 0.9rem; font-weight: 700; letter-spacing: -0.01em;
+  cursor: pointer; transition: all 0.15s; margin-top: 4px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+#go:hover { background: #2d2d4a; }
+#go:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Status */
+#status {
+  margin-top: 12px; padding: 14px 16px; border-radius: 12px;
+  font-size: 0.78rem; line-height: 1.7; display: none; white-space: pre-line;
+}
+#status.ok { background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; }
+#status.err { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
+
+.loader { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="wordmark">Split<span>Check</span></div>
+  <p class="tagline">Origin CSV → Flag → Split → Request</p>
+
+  <!-- Upload -->
+  <div class="card">
+    <div class="card-title">01 · Origin CSV</div>
+    <div id="dz" onclick="document.getElementById('fi').click()">
+      <span class="dz-icon">📂</span>
+      <p>Drop your Origin export here<br/>or <span class="browse">browse to select</span></p>
+    </div>
+    <input type="file" id="fi" accept=".csv" multiple/>
+    <div id="preview"></div>
+    <div class="hint">In Origin: <strong>Spending → Transactions → ⋯ → Export CSV</strong><br/>You can drop multiple CSVs (one per card) at once.</div>
+  </div>
+
+  <!-- Settings -->
+  <div class="card">
+    <div class="card-title">02 · Settings</div>
+    <div class="two">
+      <div class="field">
+        <label>Flag over ($)</label>
+        <input type="number" id="threshold" value="40" min="1"/>
+      </div>
+      <div class="field">
+        <label>App URL</label>
+        <input type="text" id="app-url" placeholder="https://your-app.vercel.app"/>
+      </div>
+    </div>
+    <div class="field">
+      <label>Categories</label>
+      <input type="text" id="cats" value="restaurant, dining, grocery, groceries, food & drink, food, coffee, bar"/>
+    </div>
+  </div>
+
+  <!-- SMS -->
+  <div class="card">
+    <div class="card-title">03 · SMS Alert</div>
+    <div class="toggle-row" onclick="toggleSMS()">
+      <div class="pill" id="pill"></div>
+      <span class="toggle-label">Text me when expenses are flagged</span>
+    </div>
+    <div class="sms-fields" id="sms-fields">
+      <div class="two">
+        <div class="field"><label>Twilio SID</label><input type="text" id="tw-sid" placeholder="ACxxxxxxxx"/></div>
+        <div class="field"><label>Auth Token</label><input type="password" id="tw-token" placeholder="••••••"/></div>
+        <div class="field"><label>From (Twilio #)</label><input type="text" id="tw-from" placeholder="+1xxxxxxxxxx"/></div>
+        <div class="field"><label>Your number</label><input type="text" id="tw-to" placeholder="+1xxxxxxxxxx"/></div>
+      </div>
+      <div class="sms-note">Free at <a href="https://twilio.com" target="_blank">twilio.com</a> · verify your number under Verified Caller IDs</div>
+    </div>
+  </div>
+
+  <button id="go" disabled onclick="submit()">
+    Drop a CSV to begin
+  </button>
+  <div id="status"></div>
+</div>
+
+<script>
+let allRows = [];
+let smsOn = false;
+
+const dz = document.getElementById('dz');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); loadFiles([...e.dataTransfer.files]); });
+document.getElementById('fi').addEventListener('change', e => loadFiles([...e.target.files]));
+
+function loadFiles(files) {
+  const csvFiles = files.filter(f => f.name.endsWith('.csv'));
+  if (!csvFiles.length) return;
+  allRows = [];
+  let done = 0;
+  csvFiles.forEach(file => {
+    const r = new FileReader();
+    r.onload = e => {
+      allRows = [...allRows, ...parseCSV(e.target.result)];
+      done++;
+      if (done === csvFiles.length) {
+        dz.classList.add('loaded');
+        dz.innerHTML = `<span class="dz-icon">✅</span><p><strong>${csvFiles.map(f=>f.name).join(', ')}</strong><br/>${allRows.length} transactions loaded</p>`;
+        previewFlagged();
+        const btn = document.getElementById('go');
+        btn.disabled = false;
+        btn.innerHTML = 'Scan & Send →';
+      }
+    };
+    r.readAsText(file);
+  });
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.replace(/"/g,'').trim().toLowerCase());
+  return lines.slice(1).map(line => {
+    const cols = splitLine(line), row = {};
+    headers.forEach((h,i) => row[h] = (cols[i]||'').replace(/"/g,'').trim());
+    return row;
+  }).filter(r => Object.values(r).some(v=>v));
+}
+function splitLine(line) {
+  const res=[]; let cur='', inQ=false;
+  for (const c of line) {
+    if (c==='"') inQ=!inQ;
+    else if (c===',' && !inQ){res.push(cur);cur='';}
+    else cur+=c;
+  }
+  res.push(cur); return res;
+}
+function getAmt(row) {
+  for (const k of ['amount','debit','charge','transaction amount']) {
+    if (row[k]!==undefined) {
+      const v = parseFloat(row[k].replace(/[$,\s]/g,'').replace(/\((.+)\)/,'-$1'));
+      if (!isNaN(v)) return Math.abs(v);
+    }
+  }
+  return null;
+}
+function getCat(row) { return (row['category']||row['type']||'').toLowerCase(); }
+function getMerch(row) { return row['merchant']||row['description']||row['name']||row['payee']||'Unknown'; }
+function getDate(row) { return row['date']||row['transaction date']||row['posted date']||''; }
+
+function getFlagged() {
+  const threshold = parseFloat(document.getElementById('threshold').value)||40;
+  const cats = document.getElementById('cats').value.split(',').map(c=>c.trim().toLowerCase());
+  return allRows.filter(row => {
+    const a = getAmt(row), cat = getCat(row);
+    return a && a > threshold && cats.some(c => cat.includes(c));
+  });
+}
+
+function previewFlagged() {
+  const flagged = getFlagged();
+  const prev = document.getElementById('preview');
+  prev.style.display = 'block';
+  if (!flagged.length) { prev.innerHTML = '✓ No charges over threshold found.'; return; }
+  const total = flagged.reduce((s,r)=>s+(getAmt(r)||0),0);
+  prev.innerHTML = `<span class="flag">⚑ ${flagged.length} flagged · $${total.toFixed(2)} total</span>\n` +
+    flagged.slice(0,4).map(r=>`${getMerch(r)}  $${getAmt(r).toFixed(2)}`).join('\n') +
+    (flagged.length>4 ? `\n+${flagged.length-4} more…` : '');
+}
+
+function toggleSMS() {
+  smsOn = !smsOn;
+  document.getElementById('pill').classList.toggle('on', smsOn);
+  document.getElementById('sms-fields').classList.toggle('show', smsOn);
+}
+
+async function submit() {
+  const appUrl = document.getElementById('app-url').value.trim();
+  if (!appUrl) { showStatus('err', 'Enter your hosted app URL first.'); return; }
+
+  const flagged = getFlagged().map(row => ({
+    merchant: getMerch(row), date: getDate(row),
+    amount: getAmt(row), category: getCat(row),
+    threshold: parseFloat(document.getElementById('threshold').value)||40
+  }));
+
+  if (!flagged.length) { showStatus('ok', '✓ No flagged expenses found. Nothing to send.'); return; }
+
+  const btn = document.getElementById('go');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="loader"></div> Sending…';
+
+  const payload = {
+    expenses: flagged,
+    threshold: parseFloat(document.getElementById('threshold').value)||40,
+    ...(smsOn ? {
+      twilioSid: document.getElementById('tw-sid').value.trim(),
+      twilioToken: document.getElementById('tw-token').value.trim(),
+      twilioFrom: document.getElementById('tw-from').value.trim(),
+      twilioTo: document.getElementById('tw-to').value.trim(),
+    } : {})
+  };
+
+  try {
+    const res = await fetch(`${appUrl}/api/push`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error||'Server error');
+
+    let msg = `✓ ${flagged.length} expense${flagged.length>1?'s':''} sent.\n\nOpen app:\n${data.appUrl}`;
+    if (data.smsSent) msg += '\n\n📲 SMS sent to your phone!';
+    else if (smsOn && data.smsError) msg += `\n\n⚠ SMS failed: ${data.smsError}`;
+    showStatus('ok', msg);
+    btn.innerHTML = '✓ Done';
+  } catch(e) {
+    showStatus('err', `Error: ${e.message}`);
+    btn.disabled = false;
+    btn.innerHTML = 'Retry →';
+  }
+}
+
+function showStatus(type, msg) {
+  const el = document.getElementById('status');
+  el.className = type; el.textContent = msg; el.style.display = 'block';
+}
+
+document.getElementById('threshold').addEventListener('input', () => { if(allRows.length) previewFlagged(); });
+</script>
+</body>
+</html>

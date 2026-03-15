@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SplitCheck · Uploader</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Syne+Mono&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #0c0c0f;
+  --surface: #141418;
+  --surface2: #1c1c22;
+  --border: #2a2a35;
+  --accent: #d4f545;
+  --accent2: #f5a623;
+  --red: #ff4d6d;
+  --muted: #666680;
+  --text: #e8e8f0;
+  --text2: #a0a0b8;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Syne', sans-serif;
+  min-height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; padding: 32px 20px;
+}
+.shell { width: 100%; max-width: 520px; }
+
+h1 { font-size: 2.4rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 4px; }
+h1 span { color: var(--accent); }
+.sub { font-size: 0.75rem; color: var(--muted); margin-bottom: 36px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 18px; padding: 28px; margin-bottom: 14px;
+}
+.card-label {
+  font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 14px;
+}
+
+/* Drop zone */
+#dz {
+  border: 2px dashed var(--border); border-radius: 12px;
+  padding: 48px 20px; text-align: center; cursor: pointer;
+  transition: all 0.2s;
+}
+#dz:hover, #dz.over { border-color: var(--accent); background: rgba(212,245,69,0.04); }
+#dz .icon { font-size: 2.4rem; margin-bottom: 12px; }
+#dz p { font-size: 0.82rem; color: var(--muted); line-height: 1.7; }
+#dz span { color: var(--accent); }
+#fi { display: none; }
+
+/* Fields */
+.field { margin-bottom: 12px; }
+.field label { display: block; font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.field input {
+  width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px;
+  font-family: 'Syne Mono', monospace; font-size: 0.85rem;
+  color: var(--text); background: var(--bg); outline: none; transition: border-color 0.15s;
+}
+.field input:focus { border-color: var(--accent); }
+.field input::placeholder { color: var(--muted); }
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* Twilio toggle */
+.tw-row { display: flex; align-items: center; gap: 10px; cursor: pointer; margin-bottom: 14px; }
+.pill { width: 36px; height: 20px; border-radius: 99px; background: var(--border); position: relative; transition: background 0.2s; flex-shrink: 0; }
+.pill::after { content:''; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; transition:transform 0.2s; }
+.pill.on { background: var(--accent); }
+.pill.on::after { transform: translateX(16px); }
+.pill-label { font-size: 0.8rem; }
+.tw-body { display: none; }
+.tw-body.show { display: block; }
+.tw-note { font-size: 0.68rem; color: var(--muted); line-height: 1.6; margin-top: 8px; }
+.tw-note a { color: var(--accent); text-decoration: none; }
+
+/* Submit */
+#submit-btn {
+  width: 100%; padding: 16px;
+  background: var(--accent); color: #0c0c0f;
+  border: none; border-radius: 12px;
+  font-family: 'Syne', sans-serif; font-size: 0.88rem; font-weight: 800;
+  letter-spacing: 0.04em; cursor: pointer; transition: opacity 0.15s;
+  margin-top: 4px;
+}
+#submit-btn:hover { opacity: 0.88; }
+#submit-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Status */
+#status {
+  margin-top: 14px; padding: 16px 18px; border-radius: 12px;
+  font-size: 0.8rem; line-height: 1.7; display: none;
+}
+#status.ok { background: rgba(212,245,69,0.08); border: 1px solid rgba(212,245,69,0.2); color: var(--accent); }
+#status.err { background: rgba(255,77,109,0.08); border: 1px solid rgba(255,77,109,0.2); color: var(--red); }
+
+.hint {
+  font-size: 0.68rem; color: var(--muted); line-height: 1.7;
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);
+}
+.hint strong { color: var(--text2); }
+
+/* Preview */
+#preview {
+  background: var(--surface2); border-radius: 10px;
+  padding: 12px 14px; margin-top: 12px; display: none;
+  font-size: 0.75rem; font-family: 'Syne Mono', monospace; color: var(--text2);
+}
+#preview .flag { color: var(--red); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <h1>Split<span>Check</span></h1>
+  <p class="sub">Uploader · Step 1 of 2</p>
+
+  <!-- Step 1: CSV -->
+  <div class="card">
+    <div class="card-label">01 — Origin CSV</div>
+    <div id="dz">
+      <div class="icon">📂</div>
+      <p>Drop your Origin export here<br/>or <span onclick="document.getElementById('fi').click()">browse files</span></p>
+    </div>
+    <input type="file" id="fi" accept=".csv"/>
+    <div id="preview"></div>
+    <div class="hint">
+      In Origin: <strong>Spending → Transactions → ⋯ → Export CSV</strong>
+    </div>
+  </div>
+
+  <!-- Step 2: Settings -->
+  <div class="card">
+    <div class="card-label">02 — Settings</div>
+    <div class="two-col">
+      <div class="field">
+        <label>Flag over ($)</label>
+        <input type="number" id="threshold" value="40" min="1"/>
+      </div>
+      <div class="field">
+        <label>Hosted app URL</label>
+        <input type="text" id="app-url" placeholder="https://your-app.vercel.app"/>
+      </div>
+    </div>
+    <div class="field">
+      <label>Categories (comma-separated)</label>
+      <input type="text" id="categories" value="restaurant, dining, grocery, groceries, food & drink, food, coffee"/>
+    </div>
+  </div>
+
+  <!-- Step 3: SMS -->
+  <div class="card">
+    <div class="card-label">03 — SMS Alert</div>
+    <div class="tw-row" onclick="toggleTw()">
+      <div class="pill" id="pill"></div>
+      <span class="pill-label">Send SMS when expenses are found</span>
+    </div>
+    <div class="tw-body" id="tw-body">
+      <div class="two-col">
+        <div class="field"><label>Account SID</label><input type="text" id="tw-sid" placeholder="ACxxxxxxxx"/></div>
+        <div class="field"><label>Auth Token</label><input type="password" id="tw-token" placeholder="••••••"/></div>
+        <div class="field"><label>From (Twilio #)</label><input type="text" id="tw-from" placeholder="+1xxxxxxxxxx"/></div>
+        <div class="field"><label>Your number</label><input type="text" id="tw-to" placeholder="+1xxxxxxxxxx"/></div>
+      </div>
+      <div class="tw-note">
+        Free at <a href="https://twilio.com" target="_blank">twilio.com</a>.
+        Verify your number under "Verified Caller IDs" in the Console (30 sec). SID + Token on the main Console page.
+      </div>
+    </div>
+  </div>
+
+  <button id="submit-btn" disabled onclick="submit()">Drop a CSV to begin</button>
+  <div id="status"></div>
+</div>
+
+<script>
+let parsedRows = [];
+let twilioOn = false;
+
+// Drag & drop
+const dz = document.getElementById('dz');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); loadFile(e.dataTransfer.files[0]); });
+document.getElementById('fi').addEventListener('change', e => loadFile(e.target.files[0]));
+
+function loadFile(file) {
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = e => {
+    parsedRows = parseCSV(e.target.result);
+    dz.innerHTML = `<div class="icon">✅</div><p><strong>${file.name}</strong><br/>${parsedRows.length} transactions loaded</p>`;
+    previewFlagged();
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = false;
+    btn.textContent = 'Scan & Send →';
+  };
+  r.readAsText(file);
+}
+
+function previewFlagged() {
+  const threshold = parseFloat(document.getElementById('threshold').value)||40;
+  const cats = document.getElementById('categories').value.split(',').map(c=>c.trim().toLowerCase());
+  const flagged = parsedRows.filter(row => {
+    const a = getAmt(row); const cat = getCat(row);
+    return a && a > threshold && cats.some(c=>cat.includes(c));
+  });
+  const prev = document.getElementById('preview');
+  if (!flagged.length) {
+    prev.style.display='block';
+    prev.innerHTML = `✓ No charges over $${threshold} in those categories found.`;
+    return;
+  }
+  prev.style.display='block';
+  prev.innerHTML = `<span class="flag">⚑ ${flagged.length} flagged</span> — ` +
+    flagged.slice(0,3).map(r=>`${getMerch(r)} $${getAmt(r).toFixed(2)}`).join(' · ') +
+    (flagged.length>3 ? ` + ${flagged.length-3} more` : '');
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  if (lines.length<2) return [];
+  const headers = lines[0].split(',').map(h=>h.replace(/"/g,'').trim().toLowerCase());
+  return lines.slice(1).map(line => {
+    const cols = splitLine(line);
+    const row = {};
+    headers.forEach((h,i)=>row[h]=(cols[i]||'').replace(/"/g,'').trim());
+    return row;
+  }).filter(r=>Object.values(r).some(v=>v));
+}
+function splitLine(line) {
+  const res=[]; let cur=''; let inQ=false;
+  for (const c of line) {
+    if (c==='"') inQ=!inQ;
+    else if (c===',' && !inQ){res.push(cur);cur='';}
+    else cur+=c;
+  }
+  res.push(cur); return res;
+}
+function getAmt(row) {
+  for (const k of ['amount','debit','charge','transaction amount']) {
+    if (row[k]!==undefined) {
+      const v=parseFloat(row[k].replace(/[$,\s]/g,'').replace(/\((.+)\)/,'-$1'));
+      if (!isNaN(v)) return Math.abs(v);
+    }
+  }
+  return null;
+}
+function getCat(row){return(row['category']||row['type']||'').toLowerCase();}
+function getMerch(row){return row['merchant']||row['description']||row['name']||row['payee']||'Unknown';}
+function getDate(row){return row['date']||row['transaction date']||row['posted date']||'';}
+
+function toggleTw() {
+  twilioOn=!twilioOn;
+  document.getElementById('pill').classList.toggle('on',twilioOn);
+  document.getElementById('tw-body').classList.toggle('show',twilioOn);
+}
+
+async function submit() {
+  const threshold = parseFloat(document.getElementById('threshold').value)||40;
+  const cats = document.getElementById('categories').value.split(',').map(c=>c.trim().toLowerCase());
+  const appUrl = document.getElementById('app-url').value.trim();
+
+  if (!appUrl) { showStatus('err','Enter your hosted app URL (after deploying to Vercel).'); return; }
+
+  const flagged = parsedRows.filter(row => {
+    const a=getAmt(row); const cat=getCat(row);
+    return a && a>threshold && cats.some(c=>cat.includes(c));
+  }).map(row=>({
+    merchant: getMerch(row),
+    date: getDate(row),
+    amount: getAmt(row),
+    category: row['category']||getCat(row),
+    threshold
+  }));
+
+  if (!flagged.length) {
+    showStatus('ok', `✓ No charges over $${threshold} found in those categories. Nothing to send.`);
+    return;
+  }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled=true; btn.textContent='Sending…';
+
+  const payload = {
+    expenses: flagged,
+    threshold,
+    ...(twilioOn ? {
+      twilioSid: document.getElementById('tw-sid').value.trim(),
+      twilioToken: document.getElementById('tw-token').value.trim(),
+      twilioFrom: document.getElementById('tw-from').value.trim(),
+      twilioTo: document.getElementById('tw-to').value.trim(),
+    } : {})
+  };
+
+  try {
+    const res = await fetch(`${appUrl}/api/push`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error||'Server error');
+
+    let msg = `✓ ${flagged.length} expense${flagged.length>1?'s':''} sent to your app.\n\nLink: ${data.appUrl}`;
+    if (data.smsSent) msg += '\n📲 SMS sent to your phone!';
+    else if (twilioOn) msg += `\n⚠ SMS failed: ${data.smsError||'unknown error'}`;
+
+    showStatus('ok', msg);
+    btn.textContent='Done ✓';
+  } catch(e) {
+    showStatus('err', `Error: ${e.message}`);
+    btn.disabled=false; btn.textContent='Retry →';
+  }
+}
+
+function showStatus(type, msg) {
+  const el=document.getElementById('status');
+  el.className=type; el.textContent=msg; el.style.display='block';
+}
+
+// Update preview on threshold change
+document.getElementById('threshold').addEventListener('input', ()=>{ if(parsedRows.length) previewFlagged(); });
+</script>
+</body>
+</html>

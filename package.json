@@ -1,0 +1,11 @@
+{
+  "name": "splitcheck",
+  "version": "3.0.0",
+  "private": true,
+  "devDependencies": {
+    "vercel": "^33.0.0"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.37.0"
+  }
+}
