@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>SplitCheck</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 :root {
   --bg: #ffffff;
@@ -60,6 +61,13 @@ nav{position:sticky;top:0;z-index:200;background:rgba(255,255,255,0.94);backdrop
 #dz .di{font-size:1.9rem;display:block;margin-bottom:8px;}
 #dz p{font-size:0.77rem;color:var(--muted);line-height:1.7;}
 #dz .br{color:var(--accent);font-weight:600;}
+#pdz{border:2px dashed var(--border2);border-radius:12px;padding:22px 20px;text-align:center;cursor:pointer;transition:all 0.18s;background:var(--bg2);margin-bottom:10px;}
+#pdz:hover,#pdz.over{border-color:var(--accent);background:var(--accent-soft);}
+#pdz.loaded{border-color:#86efac;background:var(--green-soft);border-style:solid;}
+#pdz .di{font-size:1.5rem;display:block;margin-bottom:6px;}
+#pdz p{font-size:0.75rem;color:var(--muted);line-height:1.6;}
+#pdz .br{color:var(--accent);font-weight:600;}
+#pds{font-size:0.72rem;color:var(--ink2);margin-top:7px;line-height:1.5;min-height:18px;font-family:'JetBrains Mono',monospace;}
 #fi{display:none;}
 
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
@@ -268,13 +276,30 @@ input.pf{display:none;}
 
 .empty{text-align:center;padding:44px 20px;color:var(--muted);font-size:0.79rem;line-height:1.7;}
 .ei{font-size:1.9rem;margin-bottom:9px;}
+
+.auth-wrap{display:flex;align-items:center;justify-content:center;min-height:80vh;padding:20px;}
+.auth-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:36px 32px;max-width:380px;width:100%;text-align:center;box-shadow:var(--sh);}
+.auth-logo-big{font-size:3rem;margin-bottom:8px;}
+.auth-title{font-size:1.5rem;font-weight:800;letter-spacing:-0.03em;margin-bottom:6px;}
+.auth-title em{font-style:normal;color:var(--accent);}
+.auth-sub{font-size:0.78rem;color:var(--muted);line-height:1.6;margin-bottom:28px;}
+.google-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:13px;background:#fff;border:1.5px solid var(--border2);border-radius:11px;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.84rem;font-weight:600;color:var(--ink);cursor:pointer;transition:all 0.15s;text-decoration:none;box-shadow:var(--sh-sm);}
+.google-btn:hover{background:var(--bg2);border-color:var(--accent);}
+.auth-note{font-size:0.63rem;color:var(--muted);margin-top:16px;line-height:1.6;font-family:'JetBrains Mono',monospace;}
+.user-pill{display:flex;align-items:center;gap:6px;padding:4px 10px 4px 4px;background:var(--bg2);border:1px solid var(--border);border-radius:99px;cursor:pointer;transition:all 0.15s;}
+.user-pill:hover{background:var(--bg3);}
+.user-avatar{width:24px;height:24px;border-radius:50%;object-fit:cover;}
+.user-name{font-size:0.68rem;font-weight:600;max-width:90px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;}
+.sync-dot.syncing{background:var(--amber);animation:sdpulse 1s infinite;}
+@keyframes sdpulse{0%,100%{opacity:1}50%{opacity:0.4}}
 </style>
 </head>
 <body>
 
 <nav>
   <div class="logo"><div class="logo-mark">$÷</div>SplitCheck</div>
-  <div class="nav-pills">
+  <div id="user-area" style="display:flex;align-items:center;gap:8px;margin-right:8px"></div><div class="nav-pills">
     <button class="nav-tab active" onclick="gp('upload',this)">Upload</button>
     <button class="nav-tab hidden" id="t-split" onclick="gp('split',this)">Split <span class="badge" id="sp-badge">0</span></button>
     <button class="nav-tab hidden" id="t-txs" onclick="gp('transactions',this)">All Txs</button>
@@ -283,8 +308,24 @@ input.pf{display:none;}
   </div>
 </nav>
 
+<!-- AUTH PAGE -->
+<div class="page active" id="page-auth">
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-logo-big">$÷</div>
+      <h2 class="auth-title">Split<em>Check</em></h2>
+      <p class="auth-sub">Sign in to sync your expenses, splits, and history across iPhone and MacBook.</p>
+      <a href="/api/auth/login" class="google-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Continue with Google
+      </a>
+      <p class="auth-note">Your data is private — only you can see it.<br/>History and splits sync across all your devices.</p>
+    </div>
+  </div>
+</div>
+
 <!-- UPLOAD -->
-<div class="page active" id="page-upload">
+<div class="page" id="page-upload">
   <div class="hero">
     <h2>Split<em>Check</em></h2>
     <p>Upload your Origin CSV · flag expenses · split & request via Venmo</p>
@@ -312,6 +353,15 @@ input.pf{display:none;}
     <button class="pbtn" id="scn-btn" disabled onclick="scan()">Drop a CSV to begin</button>
     <div id="ss"></div>
     <p style="font-size:.62rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:11px;line-height:1.6">In Origin: <strong style="color:var(--ink2)">Spending → Transactions → ⋯ → Export CSV</strong></p>
+  </div>
+  <div class="card">
+    <div class="clabel">Add a Receipt PDF</div>
+    <div id="pdz" onclick="document.getElementById('pfi').click()">
+      <span class="di">📄</span>
+      <p>Drop an Amazon, Whole Foods, or any receipt PDF<br/>or <span class="br">browse to select</span></p>
+    </div>
+    <input type="file" id="pfi" accept=".pdf" multiple style="display:none"/>
+    <div id="pds"></div>
   </div>
 </div>
 
@@ -356,20 +406,142 @@ input.pf{display:none;}
 
 <script>
 const HK='sc_h5',SK='sc_s5',TK='sc_t5',XK='sc_x5';
+let currentUser=null,hist_cache=[];
 let rows=[],fld=[],sp={},sx={},smsOn=false,txFlt='all';
 
-window.addEventListener('DOMContentLoaded',()=>{
+window.addEventListener('DOMContentLoaded',async()=>{
+  await checkAuth();
+});
+
+async function checkAuth(){
+  try{
+    const res=await fetch('/api/auth/me');
+    if(!res.ok){showAuthPage();return;}
+    const {user}=await res.json();
+    if(!user){showAuthPage();return;}
+    currentUser=user;
+    renderUserPill(user);
+    await loadCloudData();
+  }catch(e){loadLocal();}
+}
+
+function showAuthPage(){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-auth').classList.add('active');
+}
+
+function renderUserPill(user){
+  const ua=document.getElementById('user-area');
+  ua.innerHTML=`<div class="user-pill" onclick="confirmSignOut()"><img class="user-avatar" src="${user.picture}" referrerpolicy="no-referrer"/><span class="user-name">${user.name.split(' ')[0]}</span><div class="sync-dot" id="sync-dot"></div></div>`;
+}
+
+function confirmSignOut(){
+  if(confirm('Sign out of SplitCheck?'))window.location.href='/api/auth/logout';
+}
+
+async function loadCloudData(){
+  try{
+    setSyncing(true);
+    const res=await fetch('/api/data/sync');
+    if(!res.ok){loadLocal();return;}
+    const data=await res.json();
+    fld=data.flagged||[];
+    hist_cache=data.history||[];
+    sx=data.skipped||{};
+    setSyncing(false);
+    showTabs();
+    if(fld.length){rAll();gp('split',document.getElementById('t-split'));}
+    else{gp('upload',document.querySelector('[onclick*=upload]'));}
+    rHist();
+    const m=location.pathname.match(/\/view\/([a-zA-Z0-9]+)/);
+    if(m)loadSess(m[1]);
+  }catch(e){setSyncing(false);loadLocal();}
+}
+
+function loadLocal(){
   try{sp=JSON.parse(localStorage.getItem(SK)||'{}');}catch(e){sp={};}
   try{sx=JSON.parse(localStorage.getItem(XK)||'{}');}catch(e){sx={};}
   try{rows=JSON.parse(localStorage.getItem(TK)||'[]');}catch(e){rows=[];}
-  if(rows.length){rcf();showTabs();rAll();}
+  showTabs();
+  if(rows.length){rcf();rAll();gp('split',document.getElementById('t-split'));}
+  else{gp('upload',document.querySelector('[onclick*=upload]'));}
   rHist();
   const m=location.pathname.match(/\/view\/([a-zA-Z0-9]+)/);
   if(m)loadSess(m[1]);
-});
+}
+
+function setSyncing(on){const d=document.getElementById('sync-dot');if(d)d.classList.toggle('syncing',on);}
+
+async function syncToCloud(type,data){
+  if(!currentUser)return;
+  setSyncing(true);
+  try{await fetch('/api/data/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type,data})});}catch(e){}
+  setSyncing(false);
+}
 
 async function loadSess(id){
-  try{const r=await fetch(`/api/session/${id}`);if(!r.ok)return;const d=await r.json();if(d.expenses?.length){fld=d.expenses;showTabs();rAll();gp('split',document.getElementById('t-split'));}}catch(e){}
+  try{const r=await fetch(`/api/session/${id}`);if(!r.ok)return;const d=await r.json();if(d.expenses?.length){fld=d.expenses;showTabs();rAll();gp('split',document.getElementById('t-split'));syncToCloud('flagged',fld);}}catch(e){}
+}
+
+// PDF
+if(typeof pdfjsLib!=='undefined'){pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}
+const pdz=document.getElementById('pdz');
+pdz.addEventListener('dragover',e=>{e.preventDefault();pdz.classList.add('over');});
+pdz.addEventListener('dragleave',()=>pdz.classList.remove('over'));
+pdz.addEventListener('drop',e=>{e.preventDefault();pdz.classList.remove('over');lpdf([...e.dataTransfer.files]);});
+document.getElementById('pfi').addEventListener('change',e=>lpdf([...e.target.files]));
+
+async function lpdf(files){
+  const pdfs=files.filter(f=>f.name.toLowerCase().endsWith('.pdf'));
+  if(!pdfs.length)return;
+  const st=document.getElementById('pds');
+  for(const file of pdfs){
+    st.textContent=`Parsing ${file.name}…`;
+    try{
+      const exp=await parsePDF(file);
+      if(!exp||!exp.amount){st.textContent='⚠ Could not find a total amount in this PDF.';continue;}
+      fld.push(exp);
+      showTabs();rAll();gp('split',document.getElementById('t-split'));
+      syncToCloud('flagged',fld);
+      pdz.classList.add('loaded');
+      st.innerHTML=`✅ Added <strong>${exp.merchant}</strong> · $${exp.amount.toFixed(2)} · ${exp.date}`;
+      document.getElementById('scn-btn').disabled=false;
+    }catch(e){st.textContent='⚠ Error reading PDF: '+e.message;}
+  }
+}
+
+async function parsePDF(file){
+  const ab=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:ab}).promise;
+  let text='';
+  for(let i=1;i<=pdf.numPages;i++){
+    const page=await pdf.getPage(i);
+    const tc=await page.getTextContent();
+    text+=tc.items.map(x=>x.str).join(' ')+'\n';
+  }
+  return extractReceiptExpense(text,file.name);
+}
+
+function extractReceiptExpense(text,filename){
+  // Amount: prefer "order total" / "grand total" labels, fall back to largest dollar amount
+  let amount=null;
+  const lbl=text.match(/(?:order total|grand total|total charged|amount charged|charged total|total)[:\s$]*\$?\s*([0-9,]+\.[0-9]{2})/i);
+  if(lbl){amount=parseFloat(lbl[1].replace(',',''));}
+  else{const all=[...text.matchAll(/\$\s*([0-9,]+\.[0-9]{2})/g)].map(m=>parseFloat(m[1].replace(',','')));if(all.length)amount=Math.max(...all);}
+
+  // Merchant: check known names, else use filename
+  let merchant=filename.replace(/\.pdf$/i,'').replace(/[_\-]+/g,' ').trim()||'Receipt';
+  const known=[['whole foods','Whole Foods Market'],['amazon fresh','Amazon Fresh'],["trader joe","Trader Joe's"],['costco','Costco'],['target','Target'],['walmart','Walmart'],['safeway','Safeway'],['kroger','Kroger'],['instacart','Instacart'],['doordash','DoorDash'],['uber eats','Uber Eats']];
+  const tl=text.toLowerCase();
+  for(const[k,n]of known){if(tl.includes(k)){merchant=n;break;}}
+
+  // Date
+  let date=new Date().toLocaleDateString('en-US',{month:'2-digit',day:'2-digit',year:'numeric'});
+  const dm=text.match(/(?:order date|placed on|date)[:\s]*([A-Za-z]+ \d{1,2},?\s*\d{4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+  if(dm){try{const d=new Date(dm[1]);if(!isNaN(d))date=d.toLocaleDateString('en-US',{month:'2-digit',day:'2-digit',year:'numeric'});}catch{}}
+
+  const cat=(['whole foods','amazon fresh','kroger','safeway','costco','walmart','trader joe','instacart'].some(k=>tl.includes(k)))?'grocery':'dining';
+  return{merchant,amount,date,category:cat,fromPDF:true};
 }
 
 // FILE
@@ -531,7 +703,7 @@ function savS(i){
   if(!entries.length){alert('Add at least one person.');return;}
   const photo=sp[i]?.photo||null;
   sp[i]={entries,mode:m,photo,savedAt:new Date().toISOString()};
-  pSp();sHist(i,entries,photo);mDone(i,entries);upProg();upStats();rRecap();adv(i);
+  pSp();sHist(i,entries,photo);mDone(i,entries);upProg();upStats();rRecap();adv(i);syncToCloud("history",gHist());syncToCloud("skipped",sx);
 }
 
 function mDone(i,entries){
@@ -604,8 +776,8 @@ function rRecap(){
 }
 
 // HISTORY
-function sHist(i,entries,photo){const exp=fld[i];if(!exp)return;const rec={id:`${exp.merchant}-${exp.date}-${Date.now()}`,merchant:exp.merchant,date:exp.date,amount:exp.amount,category:exp.category||'',entries,photo:photo||null,savedAt:new Date().toISOString()};let h=gHist();h=h.filter(x=>!(x.merchant===exp.merchant&&x.date===exp.date));h.unshift(rec);try{localStorage.setItem(HK,JSON.stringify(h));}catch(e){}rHist();}
-function gHist(){try{return JSON.parse(localStorage.getItem(HK)||'[]');}catch(e){return[];}}
+function sHist(i,entries,photo){const exp=fld[i];if(!exp)return;const rec={id:`${exp.merchant}-${exp.date}-${Date.now()}`,merchant:exp.merchant,date:exp.date,amount:exp.amount,category:exp.category||'',entries,photo:photo||null,savedAt:new Date().toISOString()};let h=gHist();h=h.filter(x=>!(x.merchant===exp.merchant&&x.date===exp.date));h.unshift(rec);hist_cache=h;try{localStorage.setItem(HK,JSON.stringify(h));}catch(e){}rHist();}
+function gHist(){if(hist_cache&&hist_cache.length)return hist_cache;try{return JSON.parse(localStorage.getItem(HK)||'[]');}catch(e){return[];}}
 function rHist(){const h=gHist(),el=document.getElementById('hl');if(!el)return;if(!h.length){el.innerHTML=`<div class="empty"><div class="ei">🗂</div>No history yet.</div>`;return;}el.innerHTML=h.map(x=>`<div class="hi">${x.photo?`<img class="him" src="${x.photo}"/>`:''}
   <div class="hitp"><div><div class="hin">${x.merchant}</div><div class="hid">${x.date}</div></div><div class="hia">$${x.amount.toFixed(2)}</div></div>
   <div class="hip">${x.entries.map(e=>`<div class="hipp"><div class="hpn">${e.name}</div><div class="hpa">$${e.owes.toFixed(2)}</div></div>`).join('')}</div>
