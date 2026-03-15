@@ -7,13 +7,16 @@ export default async function handler(req, res) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'API key not configured' });
 
-  const prompt = `Extract line items from this receipt. Return ONLY valid JSON with no markdown or explanation:
+  const prompt = `Extract purchased items from this receipt or order confirmation. Return ONLY valid JSON with no markdown:
 {"merchant":"...","total":0.00,"items":[{"name":"...","price":0.00}]}
 Rules:
-- Include only purchasable items (food, drinks, products)
-- Exclude tax, tip, subtotal, discount, fee, and delivery lines
-- Use the line total price for each item (not unit price)
-- If you cannot find items, return {"merchant":"Unknown","total":0,"items":[]}${amount ? `\nThe expected receipt total is approximately $${amount}` : ''}`;
+- Include every product, food item, or grocery line with a price
+- This may be a grocery receipt, restaurant check, Amazon/Whole Foods order, or any store receipt
+- For order confirmations: include each ordered item and its price
+- Exclude: tax, tip, subtotal, discount lines, delivery fee, service fee, bag fee
+- Use the final line price for each item (after any per-item discount)
+- Always return at least the items array, even if empty
+- Do NOT return markdown, just raw JSON${amount ? `\nExpected total: ~$${amount}` : ''}`;
 
   const messages = image
     ? [{ role: 'user', content: [

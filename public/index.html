@@ -994,7 +994,7 @@ async function fetchParsedItems(i,payload){
     const res=await fetch('/api/parse-receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const data=await res.json();
     if(data.items?.length)renderItemRows(i,data.items);
-    else document.getElementById(`il-${i}`).innerHTML='<div style="font-size:0.7rem;color:var(--muted)">Could not extract items — add them manually.</div>';
+    else{document.getElementById(`il-${i}`).innerHTML='<div style="font-size:0.68rem;color:var(--muted);margin-bottom:6px">Could not auto-extract items — add them manually:</div>';renderItemRows(i,[{name:'',price:0},{name:'',price:0},{name:'',price:0}]);}
   }catch(e){
     document.getElementById(`il-${i}`).innerHTML='<div style="font-size:0.7rem;color:var(--red)">Parse failed — add items manually.</div>';
   }
