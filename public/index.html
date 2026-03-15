@@ -469,6 +469,7 @@ function bCard(e,i){
       <div class="fl" id="fl-${i}"></div>
       <div style="display:flex;gap:6px;flex-shrink:0">
         <button class="skbtn" onclick="mAlr(${i})">Already requested</button>
+        <button class="skbtn" onclick="mSolo(${i})">Just me 👤</button>
         <button class="svbtn" onclick="savS(${i})">Save Split →</button>
       </div>
     </div>
@@ -483,9 +484,10 @@ function togC(i){
   if(col)c.classList.add('cur');else c.classList.remove('cur');
 }
 
-function mAlr(i){sx[i]=true;try{localStorage.setItem(XK,JSON.stringify(sx));}catch(e){}mSkip(i);adv(i);upProg();upStats();}
+function mAlr(i){sx[i]="alr";try{localStorage.setItem(XK,JSON.stringify(sx));}catch(e){}mSkip(i,'alr');adv(i);upProg();upStats();}
+function mSolo(i){sx[i]="solo";try{localStorage.setItem(XK,JSON.stringify(sx));}catch(e){}mSkip(i,"solo");adv(i);upProg();upStats();}
 function dPr(i){document.getElementById(`prb-${i}`)?.remove();}
-function mSkip(i){const c=document.getElementById(`ec-${i}`);if(!c)return;c.classList.add('skp','col');c.classList.remove('cur');const s=document.getElementById(`est-${i}`);if(s)s.innerHTML=`<span class="schip sc-skp">Already requested</span>`;}
+function mSkip(i,type){const c=document.getElementById(`ec-${i}`);if(!c)return;c.classList.add('skp','col');c.classList.remove('cur');const s=document.getElementById(`est-${i}`);if(s)s.innerHTML=`<span class="schip sc-skp">${type==="solo"?"👤 Just me":"✓ Already requested"}</span>`;}
 
 // MODE BODIES
 const mMap={},pMap={};
