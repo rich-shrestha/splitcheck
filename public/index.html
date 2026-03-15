@@ -68,6 +68,17 @@ nav{position:sticky;top:0;z-index:200;background:rgba(255,255,255,0.94);backdrop
 #pdz p{font-size:0.75rem;color:var(--muted);line-height:1.6;}
 #pdz .br{color:var(--accent);font-weight:600;}
 #pds{font-size:0.72rem;color:var(--ink2);margin-top:7px;line-height:1.5;min-height:18px;font-family:'JetBrains Mono',monospace;}
+.sess-list{display:flex;flex-direction:column;gap:6px;}
+.sess-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:9px;cursor:pointer;transition:all 0.15s;background:var(--surface);}
+.sess-item:hover{border-color:var(--accent);background:var(--accent-soft);}
+.sess-icon{font-size:1.1rem;flex-shrink:0;}
+.sess-info{flex:1;min-width:0;}
+.sess-name{font-size:0.77rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sess-meta{font-size:0.58rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:2px;}
+.sess-active{border-color:var(--accent)!important;background:var(--accent-soft)!important;}
+.sess-active .sess-name{color:var(--accent);}
+.sess-del{font-size:0.68rem;color:var(--muted);background:none;border:none;cursor:pointer;padding:4px 6px;border-radius:4px;flex-shrink:0;line-height:1;}
+.sess-del:hover{color:var(--red);background:var(--red-soft);}
 #fi{display:none;}
 
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
@@ -354,6 +365,10 @@ input.pf{display:none;}
     <div id="ss"></div>
     <p style="font-size:.62rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:11px;line-height:1.6">In Origin: <strong style="color:var(--ink2)">Spending → Transactions → ⋯ → Export CSV</strong></p>
   </div>
+  <div class="card" id="sess-card" style="display:none">
+    <div class="clabel">Recent Uploads</div>
+    <div class="sess-list" id="sess-list"></div>
+  </div>
   <div class="card">
     <div class="clabel">Add a Receipt PDF</div>
     <div id="pdz" onclick="document.getElementById('pfi').click()">
@@ -410,6 +425,7 @@ let currentUser=null,hist_cache=[];
 let rows=[],fld=[],sp={},sx={},smsOn=false,txFlt='all';
 
 window.addEventListener('DOMContentLoaded',async()=>{
+  rSessions();
   await checkAuth();
 });
 
@@ -448,6 +464,7 @@ async function loadCloudData(){
     fld=data.flagged||[];
     hist_cache=data.history||[];
     sx=data.skipped||{};
+    try{rows=JSON.parse(localStorage.getItem(TK)||'[]');}catch(e){rows=[];}
     setSyncing(false);
     showTabs();
     if(fld.length){rAll();gp('split',document.getElementById('t-split'));}
@@ -554,7 +571,7 @@ document.getElementById('fi').addEventListener('change',e=>lf([...e.target.files
 function lf(files){
   const csvs=files.filter(f=>f.name.endsWith('.csv'));if(!csvs.length)return;
   rows=[];let done=0;
-  csvs.forEach(file=>{const r=new FileReader();r.onload=e=>{rows=[...rows,...parseCSV(e.target.result)];if(++done===csvs.length){try{localStorage.setItem(TK,JSON.stringify(rows));}catch(ee){}rcf();dz.classList.add('loaded');dz.innerHTML=`<span class="di">✅</span><p><strong>${csvs.map(f=>f.name).join(', ')}</strong><br/>${rows.length} transactions loaded</p>`;spv();document.getElementById('scn-btn').disabled=false;document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;}};r.readAsText(file);});
+  csvs.forEach(file=>{const r=new FileReader();r.onload=e=>{rows=[...rows,...parseCSV(e.target.result)];if(++done===csvs.length){try{localStorage.setItem(TK,JSON.stringify(rows));}catch(ee){}rcf();dz.classList.add('loaded');dz.innerHTML=`<span class="di">✅</span><p><strong>${csvs.map(f=>f.name).join(', ')}</strong><br/>${rows.length} transactions loaded</p>`;spv();document.getElementById('scn-btn').disabled=false;document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;saveSess(csvs.map(f=>f.name),rows);}};r.readAsText(file);});
 }
 
 function parseCSV(t){const ls=t.trim().split('\n');if(ls.length<2)return[];const hs=ls[0].split(',').map(h=>h.replace(/"/g,'').trim().toLowerCase());return ls.slice(1).map(l=>{const c=sl2(l),r={};hs.forEach((h,i)=>r[h]=(c[i]||'').replace(/"/g,'').trim());return r;}).filter(r=>Object.values(r).some(v=>v));}
@@ -813,6 +830,53 @@ function vb(name,amt,exp){const note=encodeURIComponent(`${exp?.merchant||'expen
 function dRange(d){try{const dt=new Date(d+'T12:00:00'),m=new Date(dt),p=new Date(dt);m.setDate(dt.getDate()-3);p.setDate(dt.getDate()+3);const f=x=>x.toLocaleDateString('en-US',{month:'short',day:'numeric'});return`${f(m)}–${f(p)}`;}catch{return'±3 days';}}
 function tSMS(){smsOn=!smsOn;document.getElementById('pill').classList.toggle('on',smsOn);document.getElementById('smsg').classList.toggle('show',smsOn);}
 function gp(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));document.getElementById(`page-${name}`).classList.add('active');btn?.classList.add('active');if(name==='history')rHist();if(name==='recap')rRecap();if(name==='transactions')rtt();}
+
+// SESSIONS
+const SESS_KEY='sc_sessions',MAX_SESS=5;
+let activeSessId=null;
+function getSessions(){try{return JSON.parse(localStorage.getItem(SESS_KEY)||'[]');}catch{return[];}}
+function saveSess(names,newRows){
+  const label=names.join(', ');
+  const sessions=getSessions().filter(s=>s.name!==label);
+  const s={id:Date.now().toString(),name:label,uploadedAt:new Date().toISOString(),rows:newRows,threshold:parseFloat(document.getElementById('thr').value)||40,categories:document.getElementById('cats').value};
+  sessions.unshift(s);sessions.splice(MAX_SESS);
+  try{localStorage.setItem(SESS_KEY,JSON.stringify(sessions));}catch(e){}
+  activeSessId=s.id;rSessions();
+}
+function restoreSess(id){
+  const sess=getSessions().find(s=>s.id===id);if(!sess)return;
+  rows=sess.rows;
+  if(sess.threshold)document.getElementById('thr').value=sess.threshold;
+  if(sess.categories)document.getElementById('cats').value=sess.categories;
+  try{localStorage.setItem(TK,JSON.stringify(rows));}catch(e){}
+  rcf();spv();
+  dz.classList.add('loaded');
+  dz.innerHTML=`<span class="di">✅</span><p><strong>${sess.name}</strong><br/>${rows.length} transactions restored</p>`;
+  document.getElementById('scn-btn').disabled=false;
+  document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;
+  showTabs();rAll();gp('split',document.getElementById('t-split'));
+  activeSessId=id;rSessions();
+}
+function deleteSess(id,e){
+  e.stopPropagation();
+  const sessions=getSessions().filter(s=>s.id!==id);
+  try{localStorage.setItem(SESS_KEY,JSON.stringify(sessions));}catch(e){}
+  if(activeSessId===id)activeSessId=null;
+  rSessions();
+}
+function rSessions(){
+  const sessions=getSessions();
+  const card=document.getElementById('sess-card');
+  const list=document.getElementById('sess-list');
+  if(!card||!list)return;
+  if(!sessions.length){card.style.display='none';return;}
+  card.style.display='block';
+  list.innerHTML=sessions.map(s=>{
+    const date=new Date(s.uploadedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    const active=s.id===activeSessId;
+    return`<div class="sess-item${active?' sess-active':''}" onclick="restoreSess('${s.id}')"><span class="sess-icon">📂</span><div class="sess-info"><div class="sess-name">${s.name}</div><div class="sess-meta">${date} · ${s.rows?.length||0} transactions${active?' · active':''}</div></div><button class="sess-del" onclick="deleteSess('${s.id}',event)" title="Remove">✕</button></div>`;
+  }).join('');
+}
 </script>
 </body>
 </html>
