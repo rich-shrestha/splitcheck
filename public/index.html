@@ -648,19 +648,22 @@ function showTabs(){['t-split','t-txs','t-recap','t-hist'].forEach(id=>document.
 function rAll(){rSplit();rtt();rRecap();upStats();}
 
 // SPLIT
+function fKey(i){const e=fld[i];return e?`${e.merchant}|${e.date}|${e.amount}`:`idx:${i}`;}
+
 function rSplit(){
   const el=document.getElementById('sl');
   if(!fld.length){el.innerHTML=`<div class="empty"><div class="ei">📭</div>Upload a CSV to see flagged expenses.</div>`;return;}
   el.innerHTML=fld.map((e,i)=>bCard(e,i)).join('');
-  const first=fld.findIndex((_,i)=>!sp[i]&&!sx[i]);
+  const first=fld.findIndex((_,i)=>!sp[i]&&!sx[fKey(i)]);
   if(first>=0)openC(first);
   Object.entries(sp).forEach(([i,s])=>{if(s.photo)sPhoto(+i,s.photo);else if(s.pdfName)sPDFAttach(+i,s.pdfName,s.pdfAmt);if(s.entries){sRes(+i,s.entries);mDone(+i,s.entries);}});
-  Object.entries(sx).forEach(([i])=>mSkip(+i));
+  fld.forEach((_,j)=>{const k=fKey(j);if(sx[k])mSkip(j,sx[k]);});
   upProg();
 }
 
 function bCard(e,i){
   const isR=ir(e.category);
+  const catLabel=e.category?(e.category.charAt(0).toUpperCase()+e.category.slice(1)):(isR?'Restaurant':'Grocery');
   const hist=gHist();
   const pr=hist.find(h=>h.merchant===e.merchant&&h.date===e.date);
   return `<div class="ec col" id="ec-${i}">
@@ -668,7 +671,7 @@ function bCard(e,i){
       <div class="enum" id="en-${i}">${i+1}</div>
       <div class="einfo">
         <div class="emerch">${e.merchant}</div>
-        <div class="esub"><span class="edate">${e.date}</span><span class="cchip ${isR?'cr':'cg'}">${isR?'🍽 Restaurant':'🛒 Grocery'}</span></div>
+        <div class="esub"><span class="edate">${e.date}</span><span class="cchip ${isR?'cr':'cg'}">${isR?'🍽':'🛒'} ${catLabel}</span></div>
       </div>
       <div class="eright">
         <div class="eamt">$${e.amount.toFixed(2)}</div>
@@ -721,8 +724,8 @@ function togC(i){
   if(col)c.classList.add('cur');else c.classList.remove('cur');
 }
 
-function mAlr(i){sx[i]="alr";try{localStorage.setItem(XK,JSON.stringify(sx));}catch(e){}mSkip(i,'alr');adv(i);upProg();upStats();}
-function mSolo(i){sx[i]="solo";try{localStorage.setItem(XK,JSON.stringify(sx));}catch(e){}mSkip(i,"solo");adv(i);upProg();upStats();}
+function mAlr(i){sx[fKey(i)]="alr";try{localStorage.setItem(XK,JSON.stringify(sx));}catch(e){}mSkip(i,'alr');adv(i);upProg();upStats();syncToCloud('skipped',sx);}
+function mSolo(i){sx[fKey(i)]="solo";try{localStorage.setItem(XK,JSON.stringify(sx));}catch(e){}mSkip(i,"solo");adv(i);upProg();upStats();syncToCloud('skipped',sx);}
 function dPr(i){document.getElementById(`prb-${i}`)?.remove();}
 function mSkip(i,type){const c=document.getElementById(`ec-${i}`);if(!c)return;c.classList.add('skp','col');c.classList.remove('cur');const s=document.getElementById(`est-${i}`);if(s)s.innerHTML=`<span class="schip sc-skp">${type==="solo"?"👤 Just me":"✓ Already requested"}</span>`;}
 
@@ -774,11 +777,26 @@ function oPhoto(i,input){
     const r=new FileReader();r.onload=e=>{
       sPhoto(i,e.target.result);
       if(!sp[i])sp[i]={};sp[i].photo=e.target.result;delete sp[i].pdfName;pSp();
-      const base64=e.target.result.split(',')[1];
-      const mimeType=file.type||'image/jpeg';
-      fetchParsedItems(i,{image:base64,mimeType,amount:fld[i]?.amount});
+      resizeImage(e.target.result,1200).then(base64=>{
+        fetchParsedItems(i,{image:base64,mimeType:'image/jpeg',amount:fld[i]?.amount});
+      });
     };r.readAsDataURL(file);
   }
+}
+
+async function resizeImage(dataUrl,maxDim){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      const scale=Math.min(1,maxDim/Math.max(img.width,img.height));
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      resolve(canvas.toDataURL('image/jpeg',0.82).split(',')[1]);
+    };
+    img.onerror=()=>resolve(dataUrl.split(',')[1]);
+    img.src=dataUrl;
+  });
 }
 
 async function getPDFPayload(file){
