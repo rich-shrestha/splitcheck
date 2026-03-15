@@ -213,6 +213,12 @@ input.pf{display:none;}
 .vb:hover{opacity:0.88;}
 .vb svg{width:10px;height:10px;fill:#fff;}
 .vh{font-size:0.54rem;color:var(--muted);font-style:italic;font-family:'JetBrains Mono',monospace;}
+.pay-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:2px 0;}
+.mpbtn{font-size:0.59rem;font-weight:600;padding:5px 9px;border-radius:7px;background:var(--bg2);border:1px solid var(--border);color:var(--muted);cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.15s;white-space:nowrap;flex-shrink:0;}
+.mpbtn:hover{border-color:var(--green);color:var(--green);background:var(--green-soft);}
+.paid-chip{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:7px;background:var(--green-soft);border:1px solid #bbf7d0;color:var(--green);font-size:0.62rem;font-weight:700;white-space:nowrap;font-family:'Plus Jakarta Sans',sans-serif;}
+.pco-settled{font-size:0.82rem;font-weight:700;color:var(--green);font-family:'JetBrains Mono',monospace;}
+.pcr-paid{opacity:0.5;text-decoration:line-through;text-decoration-color:#86efac;}
 .skbtn{font-size:0.64rem;color:var(--muted);background:none;border:1px solid var(--border);border-radius:7px;padding:6px 11px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;transition:all 0.15s;}
 .skbtn:hover{background:var(--bg3);}
 .svbtn{padding:7px 15px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.7rem;font-weight:700;cursor:pointer;transition:all 0.15s;flex-shrink:0;}
@@ -464,6 +470,7 @@ async function loadCloudData(){
     fld=data.flagged||[];
     hist_cache=data.history||[];
     sx=data.skipped||{};
+    if(data.splits&&Object.keys(data.splits).length){sp=data.splits;}else{try{sp=JSON.parse(localStorage.getItem(SK)||'{}');}catch(e){sp={};}}
     try{rows=JSON.parse(localStorage.getItem(TK)||'[]');}catch(e){rows=[];}
     setSyncing(false);
     showTabs();
@@ -740,16 +747,48 @@ function savS(i){
   else{entries=rs.map(r=>({name:r.querySelector('input[type="text"]').value.trim(),owes:parseFloat(r.querySelector('.nb')?.value)||0})).filter(e=>e.name);}
   if(!entries.length){alert('Add at least one person.');return;}
   const photo=sp[i]?.photo||null;
-  sp[i]={entries,mode:m,photo,savedAt:new Date().toISOString()};
-  pSp();sHist(i,entries,photo);mDone(i,entries);upProg();upStats();rRecap();adv(i);syncToCloud("history",gHist());syncToCloud("skipped",sx);
+  const pdfName=sp[i]?.pdfName||null,pdfAmt=sp[i]?.pdfAmt||null;
+  const paid=sp[i]?.paid||{};
+  const histId=`${(fld[i]?.merchant||'exp').replace(/\s+/g,'-')}-${fld[i]?.date||''}-${Date.now()}`;
+  sp[i]={entries,mode:m,photo,pdfName,pdfAmt,savedAt:new Date().toISOString(),paid,histId};
+  pSp();sHist(i,entries,photo,histId);mDone(i,entries);upProg();upStats();rRecap();adv(i);syncToCloud("history",gHist());syncToCloud("skipped",sx);syncToCloud("splits",sp);
 }
 
 function mDone(i,entries){
   const c=document.getElementById(`ec-${i}`);if(!c)return;
   c.classList.add('done','col');c.classList.remove('cur','skp');
   const s=document.getElementById(`est-${i}`);if(s)s.innerHTML=`<span class="schip sc-done">✓ Split</span>`;
+  renderPaidRows(i,entries);
+}
+
+function renderPaidRows(i,entries){
   const fl=document.getElementById(`fl-${i}`);if(!fl)return;
-  fl.innerHTML=`<div class="sc">✓ ${entries.map(e=>e.name).join(', ')}</div><div class="vr">${entries.map(e=>vb(e.name,e.owes,fld[i])).join('')}</div><div class="vh">Venmo opens → search name → send request</div>`;
+  const paid=sp[i]?.paid||{};
+  const allPaid=entries.length>0&&entries.every((_,idx)=>paid[idx]);
+  const rows=entries.map((e,idx)=>paid[idx]
+    ?`<div class="pay-row"><span class="paid-chip">✓ ${e.name} · $${e.owes.toFixed(2)}</span></div>`
+    :`<div class="pay-row">${vb(e.name,e.owes,fld[i])}<button class="mpbtn" onclick="markPaid(${i},${idx})">Mark paid ✓</button></div>`
+  ).join('');
+  fl.innerHTML=`<div class="sc">✓ ${entries.map((e,idx)=>paid[idx]?`<span style="color:var(--green);font-weight:800">${e.name}</span>`:e.name).join(', ')}</div><div class="vr" style="flex-direction:column;align-items:flex-start;gap:5px;margin-top:6px">${rows}</div>${allPaid?`<div class="vh" style="color:var(--green);font-weight:600">✓ All settled!</div>`:`<div class="vh">Venmo → search name → send request</div>`}`;
+}
+
+function markPaid(i,idx){
+  if(!sp[i])return;
+  if(!sp[i].paid)sp[i].paid={};
+  sp[i].paid[idx]=!sp[i].paid[idx];
+  if(sp[i].histId){
+    let h=gHist();
+    const hi=h.findIndex(x=>x.id===sp[i].histId);
+    if(hi>=0&&h[hi].entries[idx]){
+      h[hi].entries[idx]={...h[hi].entries[idx],paid:sp[i].paid[idx]};
+      hist_cache=h;
+      try{localStorage.setItem(HK,JSON.stringify(h));}catch(e){}
+      syncToCloud('history',h);
+    }
+  }
+  pSp();syncToCloud('splits',sp);
+  renderPaidRows(i,sp[i].entries);
+  rRecap();
 }
 
 function adv(fi){
@@ -805,16 +844,16 @@ function rRecap(){
     <div class="rs"><div class="rsl">Total Requested</div><div class="rsv am">$${tr.toFixed(2)}</div><div class="rss">from ${pp} person${pp!==1?'s':''}</div></div>
     <div class="rs"><div class="rsl">Your Share</div><div class="rsv gr">$${ty.toFixed(2)}</div><div class="rss">after splits</div></div>
     <div class="rs"><div class="rsl">Avg per Transaction</div><div class="rsv">$${(ts/hist.length).toFixed(2)}</div><div class="rss">you paid avg $${(ty/hist.length).toFixed(2)}</div></div>`;
-  const pm={};hist.forEach(h=>h.entries.forEach(e=>{if(!pm[e.name])pm[e.name]={name:e.name,tot:0,txs:[]};pm[e.name].tot+=e.owes;pm[e.name].txs.push({merchant:h.merchant,date:h.date,owes:e.owes});}));
+  const pm={};hist.forEach(h=>h.entries.forEach((e,idx)=>{if(!pm[e.name])pm[e.name]={name:e.name,tot:0,paidAmt:0,txs:[]};pm[e.name].tot+=e.owes;if(e.paid)pm[e.name].paidAmt+=e.owes;pm[e.name].txs.push({merchant:h.merchant,date:h.date,owes:e.owes,paid:e.paid||false});}));
   const ppl=Object.values(pm).sort((a,b)=>b.tot-a.tot);
-  document.getElementById('rp').innerHTML=ppl.length?`<div class="stl">By Person</div>`+ppl.map(p=>`<div class="prc"><div class="pct"><div class="pcn">${p.name}</div><div class="pco">owes $${p.tot.toFixed(2)}</div></div><div class="pci">${p.txs.map(t=>`<div class="pcr"><span class="pcn2">${t.merchant} · ${t.date}</span><span class="pca">$${t.owes.toFixed(2)}</span></div>`).join('')}</div><div style="margin-top:9px">${vb(p.name,p.tot,{merchant:'your splits',date:''})}</div></div>`).join(''):'';
+  document.getElementById('rp').innerHTML=ppl.length?`<div class="stl">By Person</div>`+ppl.map(p=>{const owed=Math.max(0,+(p.tot-p.paidAmt).toFixed(2));const settled=owed<=0;return`<div class="prc"><div class="pct"><div class="pcn">${p.name}</div><div class="${settled?'pco-settled':'pco'}">${settled?'✓ Settled':'owes $'+owed.toFixed(2)}</div></div><div class="pci">${p.txs.map(t=>`<div class="pcr${t.paid?' pcr-paid':''}"><span class="pcn2">${t.merchant} · ${t.date}</span><span class="pca">${t.paid?'<span style="color:var(--green);font-size:0.65rem">✓</span> ':''}$${t.owes.toFixed(2)}</span></div>`).join('')}</div>${!settled?`<div style="margin-top:9px">${vb(p.name,owed,{merchant:'your splits',date:''})}</div>`:''}</div>`;}).join(''):'';
   const mm={};hist.forEach(h=>{if(!mm[h.merchant])mm[h.merchant]={name:h.merchant,tot:0,vis:0,sp:[]};mm[h.merchant].tot+=h.amount;mm[h.merchant].vis++;const ow=h.entries.reduce((s,e)=>s+e.owes,0);mm[h.merchant].sp.push({entries:h.entries,yours:h.amount-ow});});
   const mcts=Object.values(mm).sort((a,b)=>b.tot-a.tot);
   document.getElementById('rm').innerHTML=mcts.length?`<div class="stl">By Merchant</div>`+mcts.map(m=>{const you=m.sp.reduce((s,s2)=>s+s2.yours,0);return`<div class="mc"><div class="mct"><div><div class="mcn">${m.name}</div><div class="mcv">${m.vis} visit${m.vis!==1?'s':''}</div></div><div><div class="mctot">$${m.tot.toFixed(2)}</div><div class="mcyu">you: $${you.toFixed(2)}</div></div></div><div class="mcsp">${m.sp.flatMap(s=>s.entries).map(e=>`<div class="mcc"><div class="mcp">${e.name}</div><div class="mca">$${e.owes.toFixed(2)}</div></div>`).join('')}</div></div>`;}).join(''):'';
 }
 
 // HISTORY
-function sHist(i,entries,photo){const exp=fld[i];if(!exp)return;const rec={id:`${exp.merchant}-${exp.date}-${Date.now()}`,merchant:exp.merchant,date:exp.date,amount:exp.amount,category:exp.category||'',entries,photo:photo||null,savedAt:new Date().toISOString()};let h=gHist();h=h.filter(x=>!(x.merchant===exp.merchant&&x.date===exp.date));h.unshift(rec);hist_cache=h;try{localStorage.setItem(HK,JSON.stringify(h));}catch(e){}rHist();}
+function sHist(i,entries,photo,histId){const exp=fld[i];if(!exp)return;const rec={id:histId||`${exp.merchant}-${exp.date}-${Date.now()}`,merchant:exp.merchant,date:exp.date,amount:exp.amount,category:exp.category||'',entries,photo:photo||null,savedAt:new Date().toISOString()};let h=gHist();h=h.filter(x=>!(x.merchant===exp.merchant&&x.date===exp.date));h.unshift(rec);hist_cache=h;try{localStorage.setItem(HK,JSON.stringify(h));}catch(e){}rHist();}
 function gHist(){if(hist_cache&&hist_cache.length)return hist_cache;try{return JSON.parse(localStorage.getItem(HK)||'[]');}catch(e){return[];}}
 function rHist(){const h=gHist(),el=document.getElementById('hl');if(!el)return;if(!h.length){el.innerHTML=`<div class="empty"><div class="ei">🗂</div>No history yet.</div>`;return;}el.innerHTML=h.map(x=>`<div class="hi">${x.photo?`<img class="him" src="${x.photo}"/>`:''}
   <div class="hitp"><div><div class="hin">${x.merchant}</div><div class="hid">${x.date}</div></div><div class="hia">$${x.amount.toFixed(2)}</div></div>
