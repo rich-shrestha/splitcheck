@@ -762,8 +762,8 @@ function oPhoto(i,input){
   if(file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf')){
     if(!sp[i])sp[i]={};sp[i].pdfName=file.name;delete sp[i].photo;pSp();
     sPDFAttach(i,file.name,null);
-    getPDFText(file).then(text=>{
-      fetchParsedItems(i,{text,amount:fld[i]?.amount});
+    getPDFPayload(file).then(payload=>{
+      fetchParsedItems(i,{...payload,amount:fld[i]?.amount});
     }).catch(()=>{});
     parsePDF(file).then(exp=>{
       if(!exp||!exp.amount)return;
@@ -781,12 +781,22 @@ function oPhoto(i,input){
   }
 }
 
-async function getPDFText(file){
+async function getPDFPayload(file){
   const ab=await file.arrayBuffer();
   const pdf=await pdfjsLib.getDocument({data:ab}).promise;
+  // Try text extraction first
   let text='';
   for(let p=1;p<=pdf.numPages;p++){const page=await pdf.getPage(p);const tc=await page.getTextContent();text+=tc.items.map(x=>x.str).join(' ')+'\n';}
-  return text;
+  // If text is substantial, use it (cheaper API call)
+  if(text.trim().length>80)return{text};
+  // Otherwise render page 1 to canvas and send as image
+  const page=await pdf.getPage(1);
+  const vp=page.getViewport({scale:2});
+  const canvas=document.createElement('canvas');
+  canvas.width=vp.width;canvas.height=vp.height;
+  await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+  const base64=canvas.toDataURL('image/jpeg',0.85).split(',')[1];
+  return{image:base64,mimeType:'image/jpeg'};
 }
 function sPhoto(i,url){const col=document.getElementById(`pc-${i}`);if(!col)return;document.getElementById(`pm-${i}`)?.remove();col.querySelector('.pdf-ind')?.remove();if(!col.querySelector('img.rc')){const img=Object.assign(document.createElement('img'),{className:'rc',src:url});const g=Object.assign(document.createElement('div'),{className:'pgrd'});col.prepend(g);col.prepend(img);}else col.querySelector('img.rc').src=url;}
 function sPDFAttach(i,name,amt){
