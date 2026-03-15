@@ -596,7 +596,7 @@ function rSplit(){
   el.innerHTML=fld.map((e,i)=>bCard(e,i)).join('');
   const first=fld.findIndex((_,i)=>!sp[i]&&!sx[i]);
   if(first>=0)openC(first);
-  Object.entries(sp).forEach(([i,s])=>{if(s.photo)sPhoto(+i,s.photo);if(s.entries){sRes(+i,s.entries);mDone(+i,s.entries);}});
+  Object.entries(sp).forEach(([i,s])=>{if(s.photo)sPhoto(+i,s.photo);else if(s.pdfName)sPDFAttach(+i,s.pdfName,s.pdfAmt);if(s.entries){sRes(+i,s.entries);mDone(+i,s.entries);}});
   Object.entries(sx).forEach(([i])=>mSkip(+i));
   upProg();
 }
@@ -621,10 +621,10 @@ function bCard(e,i){
     ${pr?`<div class="prb" id="prb-${i}"><div class="prbi">⚠️</div><div class="prbd"><div class="prbt">You've split this before</div><div class="prbs">You requested ${pr.entries.map(e=>`${e.name} ($${e.owes.toFixed(2)})`).join(', ')} on ${pr.savedAt?.split('T')[0]||pr.date}. Already sent the Venmo request?</div><div class="prba"><button class="pbb y" onclick="mAlr(${i})">Yes, skip it</button><button class="pbb n" onclick="dPr(${i})">No, split again</button></div></div></div>`:''}
     <div class="ecbody">
       <div class="pcol" id="pc-${i}" onclick="document.getElementById('pf-${i}').click()">
-        <div class="pmt" id="pm-${i}"><div class="pmi">📷</div><div class="pmt2">Tap to attach<br/>receipt photo</div></div>
-        <div class="phov"><span>Change photo</span></div>
+        <div class="pmt" id="pm-${i}"><div class="pmi">📷</div><div class="pmt2">Tap to attach<br/>photo or PDF</div></div>
+        <div class="phov"><span>Change file</span></div>
         <div class="phint">📅 ${dRange(e.date)}</div>
-        <input class="pf" type="file" id="pf-${i}" accept="image/*" capture="environment" onchange="oPhoto(${i},this)"/>
+        <input class="pf" type="file" id="pf-${i}" accept="image/*,.pdf" onchange="oPhoto(${i},this)"/>
       </div>
       <div class="icol">
         <div class="slbl">Who split this with you?</div>
@@ -692,8 +692,29 @@ function calc(i){
 }
 function sRes(i,entries,warn){const b=document.getElementById(`rp-${i}`);if(!b)return;b.style.display='block';b.innerHTML=entries.map(e=>`<div class="rr"><span class="rn">${e.name}</span><span class="ra">owes $${e.owes.toFixed(2)}</span></div>`).join('')+(warn?`<div class="pw">⚠ ${warn}</div>`:'');}
 
-function oPhoto(i,input){const file=input.files[0];if(!file)return;const r=new FileReader();r.onload=e=>{sPhoto(i,e.target.result);if(!sp[i])sp[i]={};sp[i].photo=e.target.result;pSp();};r.readAsDataURL(file);}
-function sPhoto(i,url){const col=document.getElementById(`pc-${i}`);if(!col)return;document.getElementById(`pm-${i}`)?.remove();if(!col.querySelector('img.rc')){const img=Object.assign(document.createElement('img'),{className:'rc',src:url});const g=Object.assign(document.createElement('div'),{className:'pgrd'});col.prepend(g);col.prepend(img);}else col.querySelector('img.rc').src=url;}
+function oPhoto(i,input){
+  const file=input.files[0];if(!file)return;
+  if(file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf')){
+    if(!sp[i])sp[i]={};sp[i].pdfName=file.name;delete sp[i].photo;pSp();
+    sPDFAttach(i,file.name,null);
+    parsePDF(file).then(exp=>{
+      if(!exp||!exp.amount)return;
+      if(!sp[i])sp[i]={};sp[i].pdfAmt=exp.amount;pSp();
+      sPDFAttach(i,file.name,exp.amount);
+    }).catch(()=>{});
+  }else{
+    const r=new FileReader();r.onload=e=>{sPhoto(i,e.target.result);if(!sp[i])sp[i]={};sp[i].photo=e.target.result;delete sp[i].pdfName;pSp();};r.readAsDataURL(file);
+  }
+}
+function sPhoto(i,url){const col=document.getElementById(`pc-${i}`);if(!col)return;document.getElementById(`pm-${i}`)?.remove();col.querySelector('.pdf-ind')?.remove();if(!col.querySelector('img.rc')){const img=Object.assign(document.createElement('img'),{className:'rc',src:url});const g=Object.assign(document.createElement('div'),{className:'pgrd'});col.prepend(g);col.prepend(img);}else col.querySelector('img.rc').src=url;}
+function sPDFAttach(i,name,amt){
+  const col=document.getElementById(`pc-${i}`);if(!col)return;
+  document.getElementById(`pm-${i}`)?.remove();col.querySelector('.pdf-ind')?.remove();col.querySelector('img.rc')?.remove();col.querySelector('.pgrd')?.remove();
+  const d=document.createElement('div');d.className='pdf-ind';
+  d.style.cssText='display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;gap:6px;width:100%;';
+  d.innerHTML=`<div style="font-size:2.2rem">📄</div><div style="font-size:0.6rem;color:var(--ink2);text-align:center;word-break:break-all;line-height:1.4;max-width:120px">${name}</div>${amt?`<div style="font-size:0.7rem;font-weight:700;color:var(--green);font-family:'JetBrains Mono',monospace">$${amt.toFixed(2)}</div>`:'<div style="font-size:0.55rem;color:var(--muted)">parsing…</div>'}`;
+  col.prepend(d);
+}
 
 function savS(i){
   const m=mMap[i]||'eq',amt=fld[i]?.amount||0,rs=prs(i);let entries=[];
