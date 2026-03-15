@@ -231,7 +231,14 @@ input.pf{display:none;}
 .fb{padding:6px 12px;border-radius:99px;font-size:0.63rem;font-weight:600;border:1px solid var(--border);cursor:pointer;background:var(--surface);color:var(--muted);font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.15s;box-shadow:var(--sh-sm);}
 .fb.on{background:var(--accent);color:#fff;border-color:var(--accent);}
 .txt{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);}
-.tr{display:grid;grid-template-columns:1fr 110px 90px;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--border);font-size:0.76rem;transition:background 0.1s;}
+.tr{display:grid;grid-template-columns:1fr 110px 90px 26px;gap:8px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--border);font-size:0.76rem;transition:background 0.1s;}
+.ebtn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.75rem;padding:3px 5px;border-radius:5px;opacity:0;transition:all 0.12s;line-height:1;}
+.tr:hover .ebtn{opacity:1;}
+.ebtn:hover{background:var(--accent-soft);color:var(--accent);}
+.edited-mark{color:var(--accent);font-size:0.55rem;margin-left:3px;vertical-align:middle;font-style:normal;}
+.src-tag{font-size:0.49rem;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1px 5px;margin-left:4px;color:var(--muted);font-family:'JetBrains Mono',monospace;vertical-align:middle;white-space:nowrap;}
+#src-filters{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;}
+.sfb{font-size:0.59rem!important;}
 .tr:last-child{border:none;}
 .tr:hover{background:var(--bg2);}
 .tr.fr{background:#fffbf0;}
@@ -405,11 +412,12 @@ input.pf{display:none;}
 <div class="page" id="page-transactions">
   <div class="txctrl">
     <input type="text" class="txs" id="txq" placeholder="Search merchant…" oninput="rtt()"/>
-    <button class="fb on" onclick="stf('all',this)">All</button>
+    <button class="fb on" id="fb-all" onclick="stf('all',this)">All</button>
     <button class="fb" onclick="stf('flagged',this)">⚑ Flagged</button>
     <button class="fb" onclick="stf('restaurant',this)">🍽 Restaurant</button>
     <button class="fb" onclick="stf('grocery',this)">🛒 Grocery</button>
   </div>
+  <div id="src-filters"></div>
   <div class="txt" id="txt"><div class="empty" style="padding:28px"><div class="ei">📋</div>Upload a CSV first.</div></div>
 </div>
 
@@ -578,14 +586,21 @@ document.getElementById('fi').addEventListener('change',e=>lf([...e.target.files
 function lf(files){
   const csvs=files.filter(f=>f.name.endsWith('.csv'));if(!csvs.length)return;
   rows=[];let done=0;
-  csvs.forEach(file=>{const r=new FileReader();r.onload=e=>{rows=[...rows,...parseCSV(e.target.result)];if(++done===csvs.length){try{localStorage.setItem(TK,JSON.stringify(rows));}catch(ee){}rcf();dz.classList.add('loaded');dz.innerHTML=`<span class="di">✅</span><p><strong>${csvs.map(f=>f.name).join(', ')}</strong><br/>${rows.length} transactions loaded</p>`;spv();document.getElementById('scn-btn').disabled=false;document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;saveSess(csvs.map(f=>f.name),rows);}};r.readAsText(file);});
+  const txKey=r=>`${gd(r)}|${ga(r)}|${gm(r).toLowerCase()}`;
+  csvs.forEach(file=>{const r=new FileReader();r.onload=e=>{
+    const parsed=parseCSV(e.target.result).map(row=>({...row,_source:file.name}));
+    const seen=new Set(rows.map(txKey));
+    const unique=parsed.filter(row=>!seen.has(txKey(row)));
+    rows=[...rows,...unique];
+    if(++done===csvs.length){try{localStorage.setItem(TK,JSON.stringify(rows));}catch(ee){}rcf();dz.classList.add('loaded');dz.innerHTML=`<span class="di">✅</span><p><strong>${csvs.map(f=>f.name).join(', ')}</strong><br/>${rows.length} transactions loaded${csvs.length>1?` (${rows.length}<${csvs.reduce((s,f)=>s+parseCSV(''),0)} after dedup)`:''}</p>`;spv();document.getElementById('scn-btn').disabled=false;document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;saveSess(csvs.map(f=>f.name),rows);}
+  };r.readAsText(file);});
 }
 
 function parseCSV(t){const ls=t.trim().split('\n');if(ls.length<2)return[];const hs=ls[0].split(',').map(h=>h.replace(/"/g,'').trim().toLowerCase());return ls.slice(1).map(l=>{const c=sl2(l),r={};hs.forEach((h,i)=>r[h]=(c[i]||'').replace(/"/g,'').trim());return r;}).filter(r=>Object.values(r).some(v=>v));}
 function sl2(l){const r=[];let c='',q=false;for(const ch of l){if(ch==='"')q=!q;else if(ch===','&&!q){r.push(c);c='';}else c+=ch;}r.push(c);return r;}
 function ga(r){for(const k of['amount','debit','charge','transaction amount']){if(r[k]!==undefined){const v=parseFloat(r[k].replace(/[$,\s]/g,'').replace(/\((.+)\)/,'-$1'));if(!isNaN(v))return Math.abs(v);}}return null;}
-function gc(r){return(r['category']||r['type']||'').toLowerCase();}
-function gm(r){return r['merchant']||r['description']||r['name']||r['payee']||'Unknown';}
+function gc(r){return r._category!=null?r._category:(r['category']||r['type']||'').toLowerCase();}
+function gm(r){return r._merchant||(r['merchant']||r['description']||r['name']||r['payee']||'Unknown');}
 function gd(r){return r['date']||r['transaction date']||r['posted date']||'';}
 function ir(c){return['restaurant','dining','food & drink','bar','cafe','coffee','eat'].some(x=>(c||'').toLowerCase().includes(x));}
 
@@ -813,25 +828,54 @@ function upStats(){
 function pSp(){try{localStorage.setItem(SK,JSON.stringify(sp));}catch(e){}}
 
 // TX TABLE
-function stf(f,btn){txFlt=f;document.querySelectorAll('.fb').forEach(b=>b.classList.remove('on'));btn.classList.add('on');rtt();}
+let srcFlt=null;
+function stf(f,btn){txFlt=f;srcFlt=null;document.querySelectorAll('.fb').forEach(b=>b.classList.remove('on'));document.querySelectorAll('.sfb').forEach(b=>b.classList.remove('on'));btn.classList.add('on');rtt();}
+function setSrcFlt(src,btn){srcFlt=src;txFlt='all';document.querySelectorAll('.fb').forEach(b=>b.classList.remove('on'));document.querySelectorAll('.sfb').forEach(b=>b.classList.remove('on'));document.getElementById('fb-all').classList.add('on');btn.classList.add('on');rtt();}
 function rtt(){
   const el=document.getElementById('txt');if(!el)return;
   if(!rows.length){el.innerHTML=`<div class="empty" style="padding:28px"><div class="ei">📋</div>Upload a CSV first.</div>`;return;}
+  const sources=[...new Set(rows.map(r=>r._source).filter(Boolean))];
+  const sf=document.getElementById('src-filters');
+  if(sf)sf.innerHTML=sources.length>1?sources.map(s=>`<button class="sfb fb${srcFlt===s?' on':''}" onclick="setSrcFlt(${JSON.stringify(s)},this)">📄 ${s.replace(/\.csv$/i,'')}</button>`).join(''):'';
   const t=parseFloat(document.getElementById('thr').value)||40;
   const cats=document.getElementById('cats').value.split(',').map(c=>c.trim().toLowerCase());
   const q=(document.getElementById('txq')?.value||'').toLowerCase();
-  let rs=rows.filter(r=>{
+  const indexed=rows.map((r,i)=>({r,i})).filter(({r})=>{
     const a=ga(r),c=gc(r),merch=gm(r).toLowerCase();
     if(q&&!merch.includes(q))return false;
+    if(srcFlt&&r._source!==srcFlt)return false;
     const isF=a&&a>t&&cats.some(x=>c.includes(x));
     if(txFlt==='flagged')return isF;
     if(txFlt==='restaurant')return ir(c);
     if(txFlt==='grocery')return!ir(c)&&cats.some(x=>c.includes(x));
     return true;
   });
-  const hdr=`<div class="tr th"><span style="font-size:.58rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-family:'JetBrains Mono',monospace">Merchant</span><span style="font-size:.58rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-family:'JetBrains Mono',monospace">Category</span><span style="font-size:.58rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-family:'JetBrains Mono',monospace;text-align:right">Amount</span></div>`;
-  const body=rs.slice(0,300).map(r=>{const a=ga(r),c=gc(r);const isF=a&&a>t&&cats.some(x=>c.includes(x));return`<div class="tr ${isF?'fr':''}"><div><div class="tm">${gm(r)}</div><div class="td">${gd(r)}</div></div><div class="tc">${c||'—'}</div><div class="ta ${isF?'fa':''}" style="text-align:right">${a?'$'+a.toFixed(2):'—'}${isF?` <span class="fb2">⚑ flagged</span>`:''}</div></div>`;}).join('');
-  el.innerHTML=hdr+body+`<div class="tcbar">Showing ${Math.min(rs.length,300)} of ${rs.length} transactions</div>`;
+  const lbl='font-size:.58rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-family:\'JetBrains Mono\',monospace';
+  const hdr=`<div class="tr th"><span style="${lbl}">Merchant</span><span style="${lbl}">Category</span><span style="${lbl};text-align:right">Amount</span><span></span></div>`;
+  const body=indexed.slice(0,300).map(({r,i})=>{
+    const a=ga(r),c=gc(r);const isF=a&&a>t&&cats.some(x=>c.includes(x));
+    const edited=r._merchant||r._category!=null;
+    return`<div class="tr ${isF?'fr':''}"><div><div class="tm">${gm(r)}${edited?'<em class="edited-mark" title="Edited">✎</em>':''}</div><div class="td">${gd(r)}${r._source&&sources.length>1?`<span class="src-tag">${r._source.replace(/\.csv$/i,'')}</span>`:''}</div></div><div class="tc">${c||'—'}</div><div class="ta ${isF?'fa':''}" style="text-align:right">${a?'$'+a.toFixed(2):'—'}${isF?` <span class="fb2">⚑ flagged</span>`:''}</div><div><button class="ebtn" onclick="showEditTx(${i})">✎</button></div></div>`;
+  }).join('');
+  el.innerHTML=hdr+body+`<div class="tcbar">Showing ${Math.min(indexed.length,300)} of ${indexed.length} transactions</div>`;
+}
+function showEditTx(i){
+  const r=rows[i];if(!r)return;
+  document.getElementById('em-merchant').value=gm(r);
+  document.getElementById('em-category').value=gc(r);
+  document.getElementById('em-save').onclick=()=>saveEditTx(i);
+  const modal=document.getElementById('edit-modal');modal.style.display='flex';
+  setTimeout(()=>document.getElementById('em-merchant').select(),60);
+}
+function saveEditTx(i){
+  const r=rows[i];if(!r)return;
+  const m=document.getElementById('em-merchant').value.trim();
+  const c=document.getElementById('em-category').value.trim().toLowerCase();
+  r._merchant=m||(r['merchant']||r['description']||r['name']||r['payee']||'Unknown');
+  r._category=c;
+  try{localStorage.setItem(TK,JSON.stringify(rows));}catch(e){}
+  rcf();rAll();rtt();
+  document.getElementById('edit-modal').style.display='none';
 }
 
 // RECAP
@@ -917,5 +961,18 @@ function rSessions(){
   }).join('');
 }
 </script>
+<div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:999;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:var(--surface);border-radius:16px;padding:22px 20px;width:100%;max-width:340px;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
+    <div style="font-size:0.6rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;font-family:'JetBrains Mono',monospace">Edit Transaction</div>
+    <label style="font-size:0.72rem;font-weight:600;color:var(--ink2);display:block;margin-bottom:4px">Merchant name</label>
+    <input id="em-merchant" type="text" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.84rem;color:var(--ink);background:var(--surface);outline:none;margin-bottom:12px;box-sizing:border-box" onkeydown="if(event.key==='Enter')document.getElementById('em-save').click()"/>
+    <label style="font-size:0.72rem;font-weight:600;color:var(--ink2);display:block;margin-bottom:4px">Category <span style="font-weight:400;color:var(--muted)">(e.g. restaurant, grocery)</span></label>
+    <input id="em-category" type="text" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.84rem;color:var(--ink);background:var(--surface);outline:none;margin-bottom:16px;box-sizing:border-box" onkeydown="if(event.key==='Enter')document.getElementById('em-save').click()"/>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="document.getElementById('edit-modal').style.display='none'" style="padding:8px 16px;border-radius:8px;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.72rem;font-weight:600;cursor:pointer;background:var(--bg3);border:1px solid var(--border);color:var(--muted)">Cancel</button>
+      <button id="em-save" style="padding:8px 16px;border-radius:8px;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.72rem;font-weight:600;cursor:pointer;background:var(--accent);border:none;color:#fff">Save changes</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
