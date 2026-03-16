@@ -321,14 +321,19 @@ input.pf{display:none;}
 /* ITEMS PANEL */
 .items-panel{border-top:1px solid var(--border);padding:13px 14px;}
 .items-parsing{display:flex;align-items:center;gap:8px;font-size:0.72rem;color:var(--muted);}
-.item-row{display:grid;grid-template-columns:1fr 70px 110px 22px;gap:5px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);}
+.item-row{padding:6px 0;border-bottom:1px solid var(--border);}
 .item-row:last-child{border:none;}
+.item-top{display:grid;grid-template-columns:1fr 68px 22px;gap:5px;align-items:center;margin-bottom:5px;}
 .item-name-in{border:none;background:none;font-size:0.74rem;font-family:inherit;color:var(--ink);width:100%;outline:none;padding:2px 3px;border-radius:4px;}
 .item-name-in:focus{background:var(--bg2);}
 .item-price-in{border:1px solid var(--border);border-radius:6px;background:var(--bg2);font-size:0.71rem;font-family:'JetBrains Mono',monospace;text-align:right;width:100%;padding:3px 5px;outline:none;}
-.item-person-sel{font-size:0.63rem;border:1px solid var(--border);border-radius:6px;background:var(--surface);padding:3px 4px;width:100%;font-family:inherit;outline:none;}
 .item-del-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.7rem;line-height:1;padding:2px;}
 .item-del-btn:hover{color:var(--red);}
+.item-chips{display:flex;flex-wrap:wrap;gap:4px;}
+.ichip{font-size:0.6rem;font-weight:600;padding:3px 9px;border-radius:99px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;font-family:inherit;transition:all 0.12s;}
+.ichip.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
+.ichip.mine-chip.active{background:var(--green-soft);border-color:#86efac;color:var(--green);}
+.ichip-hint{font-size:0.58rem;color:var(--muted);font-style:italic;}
 .items-summary{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px;}
 .isumchip{font-size:0.64rem;font-weight:700;padding:4px 9px;border-radius:7px;font-family:'JetBrains Mono',monospace;}
 .isumchip.me{background:var(--bg3);color:var(--muted);}
@@ -758,6 +763,7 @@ function rP(i,n){document.getElementById(`pr-${i}-${n}`)?.remove();calc(i);}
 function prs(i){return Array.from(document.getElementById(`pl-${i}`)?.children||[]);}
 
 function calc(i){
+  refreshItemChips(i);
   const m=mMap[i]||'eq',amt=fld[i]?.amount||0,rs=prs(i);
   if(m==='eq'){const ns=rs.map(r=>r.querySelector('input[type="text"]').value.trim()).filter(Boolean);if(!ns.length)return;sRes(i,ns.map(n=>({name:n,owes:amt/ns.length})));}
   else if(m==='pct'){const ents=rs.map(r=>({name:r.querySelector('input[type="text"]').value.trim(),pct:parseFloat(r.querySelector('.nb')?.value)||0})).filter(e=>e.name);const tot=ents.reduce((s,e)=>s+e.pct,0);sRes(i,ents.map(e=>({name:e.name,owes:(e.pct/100)*amt})),tot!==100?`${tot.toFixed(0)}% — needs to be 100%`:null);}
@@ -782,7 +788,7 @@ function oPhoto(i,input){
     const r=new FileReader();r.onload=e=>{
       sPhoto(i,e.target.result);
       if(!sp[i])sp[i]={};sp[i].photo=e.target.result;delete sp[i].pdfName;pSp();
-      resizeImage(e.target.result,1200).then(base64=>{
+      resizeImage(e.target.result,1800).then(base64=>{
         fetchParsedItems(i,{image:base64,mimeType:'image/jpeg',amount:fld[i]?.amount});
       });
     };r.readAsDataURL(file);
@@ -807,11 +813,22 @@ async function resizeImage(dataUrl,maxDim){
 async function getPDFPayload(file){
   const ab=await file.arrayBuffer();
   const pdf=await pdfjsLib.getDocument({data:ab}).promise;
-  const page=await pdf.getPage(1);
-  const vp=page.getViewport({scale:1.5});
+  const scale=1.5;
+  // Render all pages stacked vertically into one canvas
+  const pages=[];
+  for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p);
+    pages.push({page,vp:page.getViewport({scale})});
+  }
+  const totalH=pages.reduce((s,p)=>s+p.vp.height,0);
   const canvas=document.createElement('canvas');
-  canvas.width=vp.width;canvas.height=vp.height;
-  await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+  canvas.width=pages[0].vp.width;canvas.height=totalH;
+  const ctx=canvas.getContext('2d');
+  let y=0;
+  for(const{page,vp}of pages){
+    await page.render({canvasContext:ctx,viewport:vp,transform:[1,0,0,1,0,y]}).promise;
+    y+=vp.height;
+  }
   const base64=canvas.toDataURL('image/jpeg',0.82).split(',')[1];
   return{image:base64,mimeType:'image/jpeg'};
 }
@@ -1005,10 +1022,48 @@ function getItemPeople(i){
   return Array.from(pl.querySelectorAll('input[type="text"]')).map(inp=>inp.value.trim()).filter(Boolean);
 }
 
+function itemChipsHTML(i,people){
+  if(!people.length)return`<span class="ichip-hint">Add names in the split form above to assign</span>`;
+  return`<button class="ichip mine-chip" data-val="mine" onclick="toggleChip(this,${i})">Mine</button>`+people.map(p=>`<button class="ichip active" data-val="${p.replace(/"/g,'&quot;')}" onclick="toggleChip(this,${i})">${p}</button>`).join('');
+}
+
 function itemRowHTML(i,n,name='',price=0){
   const people=getItemPeople(i);
-  const opts=`<option value="mine">Mine (keep)</option><option value="shared" selected>Split evenly</option>${people.map(p=>`<option value="${p.replace(/"/g,'&quot;')}">${p}</option>`).join('')}`;
-  return`<div class="item-row" id="irow-${i}-${n}"><input class="item-name-in" value="${name.replace(/"/g,'&quot;').replace(/</g,'&lt;')}" placeholder="Item name" oninput="updateItemSummary(${i})"/><input class="item-price-in" type="number" step="0.01" min="0" value="${(+price).toFixed(2)}" oninput="updateItemSummary(${i})"/><select class="item-person-sel" onchange="updateItemSummary(${i})">${opts}</select><button class="item-del-btn" onclick="delItemRow(${i},${n})">✕</button></div>`;
+  return`<div class="item-row" id="irow-${i}-${n}"><div class="item-top"><input class="item-name-in" value="${name.replace(/"/g,'&quot;').replace(/</g,'&lt;')}" placeholder="Item name" oninput="updateItemSummary(${i})"/><input class="item-price-in" type="number" step="0.01" min="0" value="${(+price).toFixed(2)}" oninput="updateItemSummary(${i})"/><button class="item-del-btn" onclick="delItemRow(${i},${n})">✕</button></div><div class="item-chips">${itemChipsHTML(i,people)}</div></div>`;
+}
+
+function toggleChip(btn,i){
+  const row=btn.closest('.item-row');
+  if(btn.dataset.val==='mine'){
+    const wasActive=btn.classList.contains('active');
+    row.querySelectorAll('.ichip').forEach(c=>c.classList.remove('active'));
+    if(!wasActive)btn.classList.add('active');
+  }else{
+    row.querySelector('.mine-chip')?.classList.remove('active');
+    btn.classList.toggle('active');
+  }
+  updateItemSummary(i);
+}
+
+function refreshItemChips(i){
+  const il=document.getElementById(`il-${i}`);if(!il)return;
+  const people=getItemPeople(i);
+  il.querySelectorAll('.item-chips').forEach(chips=>{
+    const row=chips.closest('.item-row');
+    const mineActive=row.querySelector('.mine-chip')?.classList.contains('active')||false;
+    const activeVals=new Set(Array.from(row.querySelectorAll('.ichip.active:not(.mine-chip)')).map(c=>c.dataset.val));
+    chips.innerHTML=itemChipsHTML(i,people);
+    if(mineActive)chips.querySelector('.mine-chip')?.classList.add('active');
+    else chips.querySelectorAll('.ichip:not(.mine-chip)').forEach(c=>{if(activeVals.has(c.dataset.val)||activeVals.size===0)c.classList.add('active');});
+  });
+  updateItemSummary(i);
+}
+
+function getItemAssignment(row){
+  const mine=row.querySelector('.mine-chip');
+  if(mine?.classList.contains('active'))return{type:'mine',people:[]};
+  const people=Array.from(row.querySelectorAll('.ichip:not(.mine-chip).active')).map(c=>c.dataset.val);
+  return{type:people.length?'split':'unassigned',people};
 }
 
 function renderItemRows(i,items){
@@ -1030,38 +1085,29 @@ function delItemRow(i,n){document.getElementById(`irow-${i}-${n}`)?.remove();upd
 function updateItemSummary(i){
   const il=document.getElementById(`il-${i}`);if(!il)return;
   const irows=il.querySelectorAll('.item-row');
-  const totals={};let mineTotal=0,sharedTotal=0;const sharedPeople=new Set();
+  const totals={};let mineTotal=0;
   irows.forEach(row=>{
     const price=parseFloat(row.querySelector('.item-price-in')?.value)||0;
-    const person=row.querySelector('.item-person-sel')?.value||'mine';
-    if(person==='mine')mineTotal+=price;
-    else if(person==='shared')sharedTotal+=price;
-    else{totals[person]=(totals[person]||0)+price;sharedPeople.add(person);}
+    const {type,people}=getItemAssignment(row);
+    if(type==='mine'){mineTotal+=price;}
+    else if(type==='split'&&people.length){const each=price/people.length;people.forEach(p=>{totals[p]=(totals[p]||0)+each;});}
   });
-  const sharedCount=Math.max(sharedPeople.size,1);
-  const sharedEach=sharedTotal/sharedCount;
   let chips='';
   if(mineTotal>0)chips+=`<span class="isumchip me">Mine $${mineTotal.toFixed(2)}</span>`;
-  Object.entries(totals).forEach(([name,amt])=>{chips+=`<span class="isumchip owed">${name} owes $${(amt+sharedEach).toFixed(2)}</span>`;});
-  if(sharedTotal>0&&sharedPeople.size===0)chips+=`<span class="isumchip shared">Shared $${sharedTotal.toFixed(2)} — assign people</span>`;
-  else if(sharedTotal>0)chips+=`<span class="isumchip shared">Shared ÷${sharedCount} = $${sharedEach.toFixed(2)} ea</span>`;
+  Object.entries(totals).forEach(([name,amt])=>{chips+=`<span class="isumchip owed">${name} owes $${amt.toFixed(2)}</span>`;});
+  if(!chips)chips=`<span class="ichip-hint">Tap person chips on each item to assign</span>`;
   document.getElementById(`isum-${i}`).innerHTML=chips;
 }
 
 function applyItemSplit(i){
   const il=document.getElementById(`il-${i}`);if(!il)return;
   const irows=il.querySelectorAll('.item-row');
-  const totals={};let sharedTotal=0;const sharedPeople=new Set();
+  const totals={};
   irows.forEach(row=>{
     const price=parseFloat(row.querySelector('.item-price-in')?.value)||0;
-    const person=row.querySelector('.item-person-sel')?.value||'mine';
-    if(person==='mine')return;
-    else if(person==='shared')sharedTotal+=price;
-    else{totals[person]=(totals[person]||0)+price;sharedPeople.add(person);}
+    const {type,people}=getItemAssignment(row);
+    if(type==='split'&&people.length){const each=price/people.length;people.forEach(p=>{totals[p]=(totals[p]||0)+each;});}
   });
-  const sharedCount=Math.max(sharedPeople.size,1);
-  const sharedEach=sharedTotal/sharedCount;
-  sharedPeople.forEach(p=>{totals[p]=(totals[p]||0)+sharedEach;});
   const entries=Object.entries(totals).map(([name,owes])=>({name,owes}));
   if(!entries.length){alert('Assign at least one item to a person first.');return;}
   sMode(i,'item');
