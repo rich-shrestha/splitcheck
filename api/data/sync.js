@@ -26,23 +26,25 @@ export default async function handler(req, res) {
   const uid = user.id;
 
   if (req.method === 'GET') {
-    const [flagged, history, skipped, splits] = await Promise.all([
+    const [flagged, history, skipped, splits, sessions] = await Promise.all([
       redis.get(`user:${uid}:flagged`),
       redis.get(`user:${uid}:history`),
       redis.get(`user:${uid}:skipped`),
       redis.get(`user:${uid}:splits`),
+      redis.get(`user:${uid}:sessions`),
     ]);
     return res.status(200).json({
       flagged: flagged || [],
       history: history || [],
       skipped: skipped || {},
       splits: splits || {},
+      sessions: sessions || [],
     });
   }
 
   if (req.method === 'POST') {
     const { type, data } = req.body;
-    if (!['flagged', 'history', 'skipped', 'splits'].includes(type)) {
+    if (!['flagged', 'history', 'skipped', 'splits', 'sessions'].includes(type)) {
       return res.status(400).json({ error: 'Invalid type' });
     }
     await redis.set(`user:${uid}:${type}`, data);

@@ -499,6 +499,7 @@ async function loadCloudData(){
     sx=data.skipped||{};
     if(data.splits&&Object.keys(data.splits).length){sp=data.splits;}else{try{sp=JSON.parse(localStorage.getItem(SK)||'{}');}catch(e){sp={};}}
     try{rows=JSON.parse(localStorage.getItem(TK)||'[]');}catch(e){rows=[];}
+    mergeSessions(data.sessions||[]);
     setSyncing(false);
     showTabs();
     if(fld.length){rAll();gp('split',document.getElementById('t-split'));}
@@ -1085,6 +1086,7 @@ function saveSess(names,newRows){
   const s={id:Date.now().toString(),name:label,uploadedAt:new Date().toISOString(),rows:newRows,threshold:parseFloat(document.getElementById('thr').value)||40,categories:document.getElementById('cats').value};
   sessions.unshift(s);sessions.splice(MAX_SESS);
   try{localStorage.setItem(SESS_KEY,JSON.stringify(sessions));}catch(e){}
+  syncToCloud('sessions',sessions);
   activeSessId=s.id;rSessions();
 }
 function restoreSess(id){
@@ -1105,7 +1107,18 @@ function deleteSess(id,e){
   e.stopPropagation();
   const sessions=getSessions().filter(s=>s.id!==id);
   try{localStorage.setItem(SESS_KEY,JSON.stringify(sessions));}catch(e){}
+  syncToCloud('sessions',sessions);
   if(activeSessId===id)activeSessId=null;
+  rSessions();
+}
+function mergeSessions(cloudSessions){
+  if(!cloudSessions?.length)return;
+  const local=getSessions();
+  const merged=[...cloudSessions];
+  local.forEach(ls=>{if(!merged.find(cs=>cs.id===ls.id))merged.push(ls);});
+  merged.sort((a,b)=>new Date(b.uploadedAt)-new Date(a.uploadedAt));
+  merged.splice(MAX_SESS);
+  try{localStorage.setItem(SESS_KEY,JSON.stringify(merged));}catch(e){}
   rSessions();
 }
 function rSessions(){
