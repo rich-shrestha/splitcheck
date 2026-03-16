@@ -131,6 +131,8 @@ nav{position:sticky;top:0;z-index:200;background:rgba(255,255,255,0.94);backdrop
 .ec.cur{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,91,219,0.1),var(--sh);}
 .ec.done{border-color:#86efac;background:#fafffe;}
 .ec.skp{border-color:var(--border2);background:var(--bg2);opacity:0.7;}
+.ec.venmo-pending{border-color:var(--venmo);background:#f0f8ff;}
+.ec.venmo-pending .ecfoot{background:#e8f4ff;}
 .ec.col .ecbody,.ec.col .ecfoot{display:none;}
 .ec.done:not(.col) .ecbody{display:none;}
 .ec.done:not(.col) .items-panel{display:none!important;}
@@ -153,6 +155,7 @@ nav{position:sticky;top:0;z-index:200;background:rgba(255,255,255,0.94);backdrop
 .sc-done{background:var(--green-soft);color:var(--green);border:1px solid #bbf7d0;}
 .sc-skp{background:var(--bg3);color:var(--muted);border:1px solid var(--border);}
 .sc-prior{background:var(--amber-soft);color:var(--amber);border:1px solid #fde68a;}
+.sc-venmo{background:#e0f0ff;color:var(--venmo);border:1px solid #93c5fd;}
 .chev{font-size:0.58rem;color:var(--muted);transition:transform 0.2s;}
 .ec:not(.col) .chev{transform:rotate(180deg);}
 
@@ -754,10 +757,10 @@ function reviewPriorVenmo(i){
   const pr=hist.find(h=>h.merchant===e.merchant&&h.date===e.date);
   // Mark as already requested
   sx[fKey(i)]='alr';try{localStorage.setItem(XK,JSON.stringify(sx));}catch(e){}syncToCloud('skipped',sx);
-  // Update chip but keep card expanded
+  // Update chip but keep card expanded — venmo-pending state, NOT grayed out
   const c=document.getElementById(`ec-${i}`);if(!c)return;
-  c.classList.add('skp');c.classList.remove('cur','col');
-  const s=document.getElementById(`est-${i}`);if(s)s.innerHTML=`<span class="schip sc-prior">💙 Send Venmo</span>`;
+  c.classList.add('venmo-pending');c.classList.remove('cur','col','skp','done');
+  const s=document.getElementById(`est-${i}`);if(s)s.innerHTML=`<span class="schip sc-venmo">💙 Venmo pending</span>`;
   document.getElementById(`prb-${i}`)?.remove();
   upProg();upStats();
   if(!pr?.entries?.length)return;
@@ -922,6 +925,13 @@ function markPaid(i,idx){
   }
   pSp();syncToCloud('splits',sp);
   renderPaidRows(i,sp[i].entries);
+  // If all paid on a venmo-pending card, transition to settled (grayed)
+  const allNowPaid=sp[i].entries.every((_,j)=>sp[i].paid?.[j]);
+  const card=document.getElementById(`ec-${i}`);
+  if(allNowPaid&&card?.classList.contains('venmo-pending')){
+    card.classList.remove('venmo-pending');card.classList.add('skp','col');
+    const s=document.getElementById(`est-${i}`);if(s)s.innerHTML=`<span class="schip sc-skp">✓ Settled</span>`;
+  }
   rRecap();
 }
 
