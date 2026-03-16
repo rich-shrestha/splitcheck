@@ -18,7 +18,8 @@ IMPORTANT RULES:
 1. Include ALL products, groceries, food items, drinks — anything that was purchased
 2. For Whole Foods / Amazon grocery orders: each line like "Organic Milk $4.99" is one item
 3. For restaurant receipts: each menu item with its price
-4. EXCLUDE these line types: Tax, Tip, Subtotal, Total, Discount, Savings, Bag Fee, Delivery Fee, Service Fee, Estimated Tax
+4. EXCLUDE these line types: Subtotal, Total, Discount, Savings, Bag Fee
+5. INCLUDE Tax (as name "Tax"), Tip/Gratuity (as name "Tip"), Delivery Fee (as name "Delivery Fee") — these should be split too
 5. If an item has a sale price, use the final sale price (not original)
 6. If you see "2x Item Name $9.98" treat it as one item at $9.98
 7. Even if the receipt is blurry or partially readable, extract what you can

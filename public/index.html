@@ -1086,18 +1086,23 @@ function delItemRow(i,n){document.getElementById(`irow-${i}-${n}`)?.remove();upd
 function updateItemSummary(i){
   const il=document.getElementById(`il-${i}`);if(!il)return;
   const irows=il.querySelectorAll('.item-row');
-  const totals={};let mineTotal=0;
+  const totals={};let mineTotal=0,itemsTotal=0;
   irows.forEach(row=>{
     const price=parseFloat(row.querySelector('.item-price-in')?.value)||0;
+    itemsTotal+=price;
     const {type,people}=getItemAssignment(row);
     if(type==='mine'){mineTotal+=price;}
     else if(type==='split'&&people.length){const each=price/people.length;people.forEach(p=>{totals[p]=(totals[p]||0)+each;});}
   });
+  const receiptTotal=fld[i]?.amount||0;
+  const diff=itemsTotal-receiptTotal;
+  const diffStr=Math.abs(diff)>0.01?(diff>0?` (+$${diff.toFixed(2)} over)`:(` (-$${Math.abs(diff).toFixed(2)} under)`)):'';
+  let html=`<div style="font-size:0.68rem;font-family:'JetBrains Mono',monospace;margin-bottom:7px;color:var(--ink2)">Items total: <strong>$${itemsTotal.toFixed(2)}</strong> / Receipt: <strong>$${receiptTotal.toFixed(2)}</strong><span style="color:${Math.abs(diff)>0.01?(diff>0?'var(--red)':'var(--amber)'):'var(--green)'}">${diffStr||' ✓'}</span></div>`;
   let chips='';
   if(mineTotal>0)chips+=`<span class="isumchip me">Mine $${mineTotal.toFixed(2)}</span>`;
   Object.entries(totals).forEach(([name,amt])=>{chips+=`<span class="isumchip owed">${name} owes $${amt.toFixed(2)}</span>`;});
   if(!chips)chips=`<span class="ichip-hint">Tap person chips on each item to assign</span>`;
-  document.getElementById(`isum-${i}`).innerHTML=chips;
+  document.getElementById(`isum-${i}`).innerHTML=html+`<div class="items-summary">${chips}</div>`;
 }
 
 function applyItemSplit(i){
