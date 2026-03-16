@@ -789,7 +789,7 @@ function oPhoto(i,input){
     const r=new FileReader();r.onload=e=>{
       sPhoto(i,e.target.result);
       if(!sp[i])sp[i]={};sp[i].photo=e.target.result;delete sp[i].pdfName;pSp();
-      resizeImage(e.target.result,1800).then(base64=>{
+      resizeImage(e.target.result,2400).then(base64=>{
         fetchParsedItems(i,{image:base64,mimeType:'image/jpeg',amount:fld[i]?.amount});
       });
     };r.readAsDataURL(file);
@@ -804,7 +804,7 @@ async function resizeImage(dataUrl,maxDim){
       const canvas=document.createElement('canvas');
       canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);
       canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
-      resolve(canvas.toDataURL('image/jpeg',0.82).split(',')[1]);
+      resolve(canvas.toDataURL('image/jpeg',0.92).split(',')[1]);
     };
     img.onerror=()=>resolve(dataUrl.split(',')[1]);
     img.src=dataUrl;
@@ -1026,10 +1026,11 @@ function getItemPeople(i){
 
 function itemChipsHTML(i,people,activeVals,mineActive){
   if(!people.length)return`<span class="ichip-hint">Add names in the split form above to assign</span>`;
-  const allActive=activeVals===null;// null = default, activate all
-  return`<button class="ichip mine-chip${mineActive?' active':''}" data-val="mine" onclick="toggleChip(this,${i})">Mine</button>`
+  const meActive=activeVals===null||activeVals?.has('__me__');
+  return`<button class="ichip mine-chip${mineActive?' active':''}" data-val="mine" onclick="toggleChip(this,${i})">Mine only</button>`
     +`<button class="ichip all-chip" onclick="setAllChips(this,${i})">All</button>`
-    +people.map(p=>`<button class="ichip${(allActive||activeVals?.has(p))?' active':''}" data-val="${p.replace(/"/g,'&quot;')}" onclick="toggleChip(this,${i})">${p}</button>`).join('');
+    +`<button class="ichip me-chip${meActive?' active':''}" data-val="__me__" onclick="toggleChip(this,${i})">Me</button>`
+    +people.map(p=>`<button class="ichip${(activeVals===null||activeVals?.has(p))?' active':''}" data-val="${p.replace(/"/g,'&quot;')}" onclick="toggleChip(this,${i})">${p}</button>`).join('');
 }
 
 function itemRowHTML(i,n,name='',price=0){
@@ -1057,6 +1058,7 @@ function setAllChips(btn,i){
   updateItemSummary(i);
 }
 
+
 function refreshItemChips(i){
   const il=document.getElementById(`il-${i}`);if(!il)return;
   const people=getItemPeople(i);
@@ -1065,15 +1067,18 @@ function refreshItemChips(i){
     const mineActive=row.querySelector('.mine-chip')?.classList.contains('active')||false;
     const activeVals=new Set(Array.from(row.querySelectorAll('.ichip.active:not(.mine-chip):not(.all-chip)')).map(c=>c.dataset.val));
     chips.innerHTML=itemChipsHTML(i,people,activeVals.size?activeVals:null,mineActive);
+
   });
   updateItemSummary(i);
 }
 
 function getItemAssignment(row){
   const mine=row.querySelector('.mine-chip');
-  if(mine?.classList.contains('active'))return{type:'mine',people:[]};
-  const people=Array.from(row.querySelectorAll('.ichip:not(.mine-chip):not(.all-chip).active')).map(c=>c.dataset.val);
-  return{type:people.length?'split':'unassigned',people};
+  if(mine?.classList.contains('active'))return{type:'mine',people:[],includesMe:false};
+  const active=Array.from(row.querySelectorAll('.ichip:not(.mine-chip):not(.all-chip).active')).map(c=>c.dataset.val);
+  const includesMe=active.includes('__me__');
+  const people=active.filter(v=>v!=='__me__');
+  return{type:(people.length||includesMe)?'split':'unassigned',people,includesMe};
 }
 
 function renderItemRows(i,items){
@@ -1099,9 +1104,9 @@ function updateItemSummary(i){
   irows.forEach(row=>{
     const price=parseFloat(row.querySelector('.item-price-in')?.value)||0;
     itemsTotal+=price;
-    const {type,people}=getItemAssignment(row);
+    const {type,people,includesMe}=getItemAssignment(row);
     if(type==='mine'){mineTotal+=price;}
-    else if(type==='split'&&people.length){const each=price/people.length;people.forEach(p=>{totals[p]=(totals[p]||0)+each;});}
+    else if(type==='split'){const count=people.length+(includesMe?1:0);if(count>0){const each=price/count;people.forEach(p=>{totals[p]=(totals[p]||0)+each;});if(includesMe)mineTotal+=each;}}
   });
   const receiptTotal=fld[i]?.amount||0;
   const diff=itemsTotal-receiptTotal;
@@ -1120,8 +1125,8 @@ function applyItemSplit(i){
   const totals={};
   irows.forEach(row=>{
     const price=parseFloat(row.querySelector('.item-price-in')?.value)||0;
-    const {type,people}=getItemAssignment(row);
-    if(type==='split'&&people.length){const each=price/people.length;people.forEach(p=>{totals[p]=(totals[p]||0)+each;});}
+    const {type,people,includesMe}=getItemAssignment(row);
+    if(type==='split'){const count=people.length+(includesMe?1:0);if(count>0){const each=price/count;people.forEach(p=>{totals[p]=(totals[p]||0)+each;});}}
   });
   const entries=Object.entries(totals).map(([name,owes])=>({name,owes}));
   if(!entries.length){alert('Assign at least one item to a person first.');return;}
