@@ -48,10 +48,14 @@ If you truly cannot find any items, return: {"merchant":"Unknown","total":0,"ite
     const data = await r.json();
     const raw = data.content?.[0]?.text || '';
     const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) return res.status(200).json({ items: [] });
-    const parsed = JSON.parse(match[0]);
-    return res.status(200).json(parsed);
+    if (!match) return res.status(200).json({ items: [], _debug: { raw, error: data.error, status: r.status } });
+    try {
+      const parsed = JSON.parse(match[0]);
+      return res.status(200).json({ ...parsed, _debug: parsed.items?.length ? undefined : { raw } });
+    } catch(pe) {
+      return res.status(200).json({ items: [], _debug: { raw, parseError: pe.message } });
+    }
   } catch (e) {
-    return res.status(500).json({ error: e.message, items: [] });
+    return res.status(500).json({ error: e.message, items: [], _debug: { caught: e.message } });
   }
 }
