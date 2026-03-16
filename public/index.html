@@ -1053,8 +1053,10 @@ function toggleChip(btn,i){
 
 function setAllChips(btn,i){
   const row=btn.closest('.item-row');
+  const people=row.querySelectorAll('.ichip:not(.mine-chip):not(.all-chip)');
+  const allActive=Array.from(people).every(c=>c.classList.contains('active'));
   row.querySelector('.mine-chip')?.classList.remove('active');
-  row.querySelectorAll('.ichip:not(.mine-chip):not(.all-chip)').forEach(c=>c.classList.add('active'));
+  people.forEach(c=>c.classList.toggle('active',!allActive));
   updateItemSummary(i);
 }
 
