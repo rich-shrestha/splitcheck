@@ -342,6 +342,10 @@ input.pf{display:none;}
 .isumchip.shared{background:var(--accent-soft);color:var(--accent);}
 .apply-split-btn{margin-top:10px;width:100%;padding:9px;background:var(--green);color:#fff;border:none;border-radius:9px;font-family:inherit;font-size:0.75rem;font-weight:700;cursor:pointer;transition:opacity 0.15s;}
 .apply-split-btn:hover{opacity:0.88;}
+.venmo-handle-in{font-size:0.68rem;font-family:'JetBrains Mono',monospace;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);outline:none;color:var(--ink);width:155px;transition:border-color 0.15s;}
+.venmo-handle-in:focus{border-color:var(--venmo);background:#fff;}
+.venmo-handle-in::placeholder{color:var(--muted);}
+.venmo-handle-label{font-size:0.57rem;color:var(--muted);font-family:'JetBrains Mono',monospace;}
 </style>
 </head>
 <body>
@@ -459,9 +463,9 @@ input.pf{display:none;}
 </div>
 
 <script>
-const HK='sc_h5',SK='sc_s5',TK='sc_t5',XK='sc_x5';
+const HK='sc_h5',SK='sc_s5',TK='sc_t5',XK='sc_x5',VK='sc_venmo';
 let currentUser=null,hist_cache=[];
-let rows=[],fld=[],sp={},sx={},smsOn=false,txFlt='all';
+let rows=[],fld=[],sp={},sx={},venmoNames={},smsOn=false,txFlt='all';
 
 window.addEventListener('DOMContentLoaded',async()=>{
   rSessions();
@@ -505,6 +509,8 @@ async function loadCloudData(){
     sx=data.skipped||{};
     if(data.splits&&Object.keys(data.splits).length){sp=data.splits;}else{try{sp=JSON.parse(localStorage.getItem(SK)||'{}');}catch(e){sp={};}}
     try{rows=JSON.parse(localStorage.getItem(TK)||'[]');}catch(e){rows=[];}
+    venmoNames={...JSON.parse(localStorage.getItem(VK)||'{}'),...(data.venmo||{})};
+    try{localStorage.setItem(VK,JSON.stringify(venmoNames));}catch(e){}
     mergeSessions(data.sessions||[]);
     setSyncing(false);
     showTabs();
@@ -520,6 +526,8 @@ function loadLocal(){
   try{sp=JSON.parse(localStorage.getItem(SK)||'{}');}catch(e){sp={};}
   try{sx=JSON.parse(localStorage.getItem(XK)||'{}');}catch(e){sx={};}
   try{rows=JSON.parse(localStorage.getItem(TK)||'[]');}catch(e){rows=[];}
+  try{venmoNames=JSON.parse(localStorage.getItem(VK)||'{}');}catch(e){venmoNames={};}
+
   showTabs();
   if(rows.length){rcf();rAll();gp('split',document.getElementById('t-split'));}
   else{gp('upload',document.querySelector('[onclick*=upload]'));}
@@ -690,7 +698,7 @@ function bCard(e,i){
         <span class="chev">▾</span>
       </div>
     </div>
-    ${pr?`<div class="prb" id="prb-${i}"><div class="prbi">⚠️</div><div class="prbd"><div class="prbt">You've split this before</div><div class="prbs">You requested ${pr.entries.map(e=>`${e.name} ($${e.owes.toFixed(2)})`).join(', ')} on ${pr.savedAt?.split('T')[0]||pr.date}. Already sent the Venmo request?</div><div class="prba"><button class="pbb y" onclick="mAlr(${i})">Yes, skip it</button><button class="pbb n" onclick="dPr(${i})">No, split again</button></div></div></div>`:''}
+    ${pr?`<div class="prb" id="prb-${i}"><div class="prbi">⚠️</div><div class="prbd"><div class="prbt">You've split this before</div><div class="prbs">You requested ${pr.entries.map(e=>`${e.name} ($${e.owes.toFixed(2)})`).join(', ')} on ${pr.savedAt?.split('T')[0]||pr.date}.</div><div class="prba"><button class="pbb y" onclick="mAlr(${i})">Yes, skip it</button><button class="pbb n" onclick="dPr(${i})">No, split again</button><button class="pbb" style="background:var(--venmo);color:#fff" onclick="reviewPriorVenmo(${i})">💙 Review for Venmo</button></div></div></div>`:''}
     <div class="ecbody">
       <div class="pcol" id="pc-${i}" onclick="document.getElementById('pf-${i}').click()">
         <div class="pmt" id="pm-${i}"><div class="pmi">📷</div><div class="pmt2">Tap to attach<br/>photo or PDF</div></div>
@@ -739,6 +747,23 @@ function mAlr(i){sx[fKey(i)]="alr";try{localStorage.setItem(XK,JSON.stringify(sx
 function mSolo(i){sx[fKey(i)]="solo";try{localStorage.setItem(XK,JSON.stringify(sx));}catch(e){}mSkip(i,"solo");adv(i);upProg();upStats();syncToCloud('skipped',sx);}
 function dPr(i){document.getElementById(`prb-${i}`)?.remove();}
 function mSkip(i,type){const c=document.getElementById(`ec-${i}`);if(!c)return;c.classList.add('skp','col');c.classList.remove('cur');const s=document.getElementById(`est-${i}`);if(s)s.innerHTML=`<span class="schip sc-skp">${type==="solo"?"👤 Just me":"✓ Already requested"}</span>`;}
+function reviewPriorVenmo(i){
+  const hist=gHist(),e=fld[i];
+  const pr=hist.find(h=>h.merchant===e.merchant&&h.date===e.date);
+  // Mark as already requested
+  sx[fKey(i)]='alr';try{localStorage.setItem(XK,JSON.stringify(sx));}catch(e){}syncToCloud('skipped',sx);
+  // Update chip but keep card expanded
+  const c=document.getElementById(`ec-${i}`);if(!c)return;
+  c.classList.add('skp');c.classList.remove('cur','col');
+  const s=document.getElementById(`est-${i}`);if(s)s.innerHTML=`<span class="schip sc-prior">💙 Send Venmo</span>`;
+  document.getElementById(`prb-${i}`)?.remove();
+  upProg();upStats();
+  if(!pr?.entries?.length)return;
+  // Show Venmo buttons for the prior split
+  if(!sp[i])sp[i]={};
+  sp[i].entries=pr.entries;
+  renderPaidRows(i,pr.entries);
+}
 
 // MODE BODIES
 const mMap={},pMap={};
@@ -855,12 +880,13 @@ function savS(i){
   const paid=sp[i]?.paid||{};
   const histId=`${(fld[i]?.merchant||'exp').replace(/\s+/g,'-')}-${fld[i]?.date||''}-${Date.now()}`;
   sp[i]={entries,mode:m,photo,pdfName,pdfAmt,savedAt:new Date().toISOString(),paid,histId};
-  pSp();sHist(i,entries,photo,histId);mDone(i,entries);upProg();upStats();rRecap();adv(i);syncToCloud("history",gHist());syncToCloud("skipped",sx);syncToCloud("splits",sp);
+  pSp();sHist(i,entries,photo,histId);mDone(i,entries,true);upProg();upStats();rRecap();adv(i);syncToCloud("history",gHist());syncToCloud("skipped",sx);syncToCloud("splits",sp);
 }
 
-function mDone(i,entries){
+function mDone(i,entries,keepOpen=false){
   const c=document.getElementById(`ec-${i}`);if(!c)return;
-  c.classList.add('done','col');c.classList.remove('cur','skp');
+  c.classList.add('done');c.classList.remove('cur','skp');
+  if(!keepOpen)c.classList.add('col');
   const s=document.getElementById(`est-${i}`);if(s)s.innerHTML=`<span class="schip sc-done">✓ Split</span>`;
   renderPaidRows(i,entries);
 }
@@ -869,11 +895,13 @@ function renderPaidRows(i,entries){
   const fl=document.getElementById(`fl-${i}`);if(!fl)return;
   const paid=sp[i]?.paid||{};
   const allPaid=entries.length>0&&entries.every((_,idx)=>paid[idx]);
-  const rows=entries.map((e,idx)=>paid[idx]
-    ?`<div class="pay-row"><span class="paid-chip">✓ ${e.name} · $${e.owes.toFixed(2)}</span></div>`
-    :`<div class="pay-row">${vb(e.name,e.owes,fld[i])}<button class="mpbtn" onclick="markPaid(${i},${idx})">Mark paid ✓</button></div>`
-  ).join('');
-  fl.innerHTML=`<div class="sc">✓ ${entries.map((e,idx)=>paid[idx]?`<span style="color:var(--green);font-weight:800">${e.name}</span>`:e.name).join(', ')}</div><div class="vr" style="flex-direction:column;align-items:flex-start;gap:5px;margin-top:6px">${rows}</div>${allPaid?`<div class="vh" style="color:var(--green);font-weight:600">✓ All settled!</div>`:`<div class="vh">Venmo → search name → send request</div>`}`;
+  const rows=entries.map((e,idx)=>{
+    if(paid[idx])return`<div class="pay-row"><span class="paid-chip">✓ ${e.name} · $${e.owes.toFixed(2)}</span></div>`;
+    const handle=getVenmoHandle(e.name);
+    const nk=e.name.replace(/[^a-zA-Z0-9]/g,'_');
+    return`<div class="pay-row" style="flex-direction:column;align-items:flex-start;gap:5px"><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap"><button class="vb" onclick="openVenmo(${i},${idx})"><svg viewBox="0 0 24 24"><path d="M19.5 2c.8 1.3 1.2 2.7 1.2 4.4 0 5.5-4.7 12.6-8.5 17.6H4.4L1 3.4l7.3-.7 1.8 14.2c1.7-2.8 3.8-7.2 3.8-10.2 0-1.6-.3-2.8-.7-3.7L19.5 2z"/></svg>Request $${e.owes.toFixed(2)} from ${e.name}</button><button class="mpbtn" onclick="markPaid(${i},${idx})">Mark paid ✓</button></div><div style="display:flex;align-items:center;gap:5px"><input id="vh-${i}-${idx}" class="venmo-handle-in" type="text" placeholder="@venmo_handle" value="${handle}" list="vhlist-${nk}" oninput="onHandleInput(${i},${idx},this.value)"/>${vhDatalist(nk)}</div></div>`;
+  }).join('');
+  fl.innerHTML=`<div class="sc">✓ ${entries.map((e,idx)=>paid[idx]?`<span style="color:var(--green);font-weight:800">${e.name}</span>`:e.name).join(', ')}</div><div class="vr" style="flex-direction:column;align-items:flex-start;gap:5px;margin-top:6px">${rows}</div>${allPaid?`<div class="vh" style="color:var(--green);font-weight:600">✓ All settled!</div>`:''}`;
 }
 
 function markPaid(i,idx){
@@ -996,7 +1024,32 @@ function rHist(){const h=gHist(),el=document.getElementById('hl');if(!el)return;
 function dHist(id){let h=gHist().filter(x=>x.id!==id);try{localStorage.setItem(HK,JSON.stringify(h));}catch(e){}rHist();rRecap();}
 
 // VENMO
-function vb(name,amt,exp){const note=encodeURIComponent(`${exp?.merchant||'expense'} ${exp?.date||''}`);const a=(+amt).toFixed(2);const deep=`venmo://paycharge?txn=charge&audience=private&recipients=${encodeURIComponent(name)}&amount=${a}&note=${note}`;const web=`https://venmo.com/?txn=charge&audience=private&amount=${a}&note=${note}`;return`<a class="vb" href="${deep}" onclick="setTimeout(()=>window.open('${web}','_blank'),1500)"><svg viewBox="0 0 24 24"><path d="M19.5 2c.8 1.3 1.2 2.7 1.2 4.4 0 5.5-4.7 12.6-8.5 17.6H4.4L1 3.4l7.3-.7 1.8 14.2c1.7-2.8 3.8-7.2 3.8-10.2 0-1.6-.3-2.8-.7-3.7L19.5 2z"/></svg>Request $${a} from ${name}</a>`;}
+function saveVenmoHandle(name,handle){if(!name)return;venmoNames[name]=handle;try{localStorage.setItem(VK,JSON.stringify(venmoNames));}catch(e){}syncToCloud('venmo',venmoNames);}
+function getVenmoHandle(name){return venmoNames[name]||'';}
+function vhDatalist(nk){const handles=Object.values(venmoNames).filter(Boolean);if(!handles.length)return'';return`<datalist id="vhlist-${nk}">${handles.map(h=>`<option value="${h}">`).join('')}</datalist>`;}
+function onHandleInput(cardIdx,entryIdx,value){const entry=sp[cardIdx]?.entries?.[entryIdx];if(entry&&value.trim())saveVenmoHandle(entry.name,value.trim());}
+function openVenmo(cardIdx,entryIdx){
+  const input=document.getElementById(`vh-${cardIdx}-${entryIdx}`);
+  const handle=(input?.value||'').trim();
+  const entry=sp[cardIdx]?.entries?.[entryIdx];if(!entry)return;
+  if(handle)saveVenmoHandle(entry.name,handle);
+  const recipient=encodeURIComponent((handle||entry.name).replace(/^@/,''));
+  const exp=fld[cardIdx];
+  const note=encodeURIComponent(`${exp?.merchant||'expense'} ${exp?.date||''}`);
+  const a=entry.owes.toFixed(2);
+  const deep=`venmo://paycharge?txn=charge&audience=private&recipients=${recipient}&amount=${a}&note=${note}`;
+  const web=`https://venmo.com/?txn=charge&audience=private&amount=${a}&note=${note}`;
+  window.location.href=deep;setTimeout(()=>window.open(web,'_blank'),1500);
+}
+function vb(name,amt,exp){
+  const handle=getVenmoHandle(name);
+  const note=encodeURIComponent(`${exp?.merchant||'expense'} ${exp?.date||''}`);
+  const a=(+amt).toFixed(2);
+  const recipient=encodeURIComponent((handle||name).replace(/^@/,''));
+  const deep=`venmo://paycharge?txn=charge&audience=private&recipients=${recipient}&amount=${a}&note=${note}`;
+  const web=`https://venmo.com/?txn=charge&audience=private&amount=${a}&note=${note}`;
+  return`<a class="vb" href="${deep}" onclick="setTimeout(()=>window.open('${web}','_blank'),1500)"><svg viewBox="0 0 24 24"><path d="M19.5 2c.8 1.3 1.2 2.7 1.2 4.4 0 5.5-4.7 12.6-8.5 17.6H4.4L1 3.4l7.3-.7 1.8 14.2c1.7-2.8 3.8-7.2 3.8-10.2 0-1.6-.3-2.8-.7-3.7L19.5 2z"/></svg>Request $${a} from ${name}</a>`;
+}
 
 // HELPERS
 function dRange(d){try{const dt=new Date(d+'T12:00:00'),m=new Date(dt),p=new Date(dt);m.setDate(dt.getDate()-3);p.setDate(dt.getDate()+3);const f=x=>x.toLocaleDateString('en-US',{month:'short',day:'numeric'});return`${f(m)}–${f(p)}`;}catch{return'±3 days';}}
