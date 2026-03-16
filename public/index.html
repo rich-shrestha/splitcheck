@@ -917,7 +917,7 @@ function sPDFAttach(i,name,amt){
 
 function savS(i){
   const m=mMap[i]||'eq',amt=fld[i]?.amount||0,rs=prs(i);let entries=[];
-  if(m==='eq'){const ns=rs.map(r=>r.querySelector('input[type="text"]').value.trim()).filter(Boolean);if(!ns.length){alert('Add at least one person.');return;}entries=ns.map(n=>({name:n,owes:amt/ns.length}));}
+  if(m==='eq'){const ns=rs.map(r=>r.querySelector('input[type="text"]').value.trim()).filter(Boolean);if(!ns.length){alert('Add at least one person.');return;}const meInc=document.getElementById(`meinc-${i}`)?.dataset.on==='1';const div=ns.length+(meInc?1:0);entries=ns.map(n=>({name:n,owes:amt/div}));}
   else if(m==='pct'){entries=rs.map(r=>({name:r.querySelector('input[type="text"]').value.trim(),owes:(parseFloat(r.querySelector('.nb')?.value)||0)/100*amt})).filter(e=>e.name);}
   else{entries=rs.map(r=>({name:r.querySelector('input[type="text"]').value.trim(),owes:parseFloat(r.querySelector('.nb')?.value)||0})).filter(e=>e.name);}
   if(!entries.length){alert('Add at least one person.');return;}
