@@ -808,11 +808,11 @@ async function getPDFPayload(file){
   const ab=await file.arrayBuffer();
   const pdf=await pdfjsLib.getDocument({data:ab}).promise;
   const page=await pdf.getPage(1);
-  const vp=page.getViewport({scale:2.5});
+  const vp=page.getViewport({scale:1.5});
   const canvas=document.createElement('canvas');
   canvas.width=vp.width;canvas.height=vp.height;
   await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
-  const base64=canvas.toDataURL('image/jpeg',0.88).split(',')[1];
+  const base64=canvas.toDataURL('image/jpeg',0.82).split(',')[1];
   return{image:base64,mimeType:'image/jpeg'};
 }
 function sPhoto(i,url){const col=document.getElementById(`pc-${i}`);if(!col)return;document.getElementById(`pm-${i}`)?.remove();col.querySelector('.pdf-ind')?.remove();if(!col.querySelector('img.rc')){const img=Object.assign(document.createElement('img'),{className:'rc',src:url});const g=Object.assign(document.createElement('div'),{className:'pgrd'});col.prepend(g);col.prepend(img);}else col.querySelector('img.rc').src=url;}
