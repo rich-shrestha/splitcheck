@@ -132,6 +132,8 @@ nav{position:sticky;top:0;z-index:200;background:rgba(255,255,255,0.94);backdrop
 .ec.done{border-color:#86efac;background:#fafffe;}
 .ec.skp{border-color:var(--border2);background:var(--bg2);opacity:0.7;}
 .ec.col .ecbody,.ec.col .ecfoot{display:none;}
+.ec.done:not(.col) .ecbody{display:none;}
+.ec.done:not(.col) .items-panel{display:none!important;}
 
 .echdr{display:flex;align-items:center;padding:12px 14px;cursor:pointer;gap:9px;transition:background 0.1s;}
 .echdr:hover{background:var(--bg2);}
@@ -1030,24 +1032,28 @@ function vhDatalist(nk){const handles=Object.values(venmoNames).filter(Boolean);
 function onHandleInput(cardIdx,entryIdx,value){const entry=sp[cardIdx]?.entries?.[entryIdx];if(entry&&value.trim())saveVenmoHandle(entry.name,value.trim());}
 function openVenmo(cardIdx,entryIdx){
   const input=document.getElementById(`vh-${cardIdx}-${entryIdx}`);
-  const handle=(input?.value||'').trim();
+  const handle=(input?.value||'').trim().replace(/^@/,'');
   const entry=sp[cardIdx]?.entries?.[entryIdx];if(!entry)return;
   if(handle)saveVenmoHandle(entry.name,handle);
-  const recipient=encodeURIComponent((handle||entry.name).replace(/^@/,''));
   const exp=fld[cardIdx];
   const note=encodeURIComponent(`${exp?.merchant||'expense'} ${exp?.date||''}`);
   const a=entry.owes.toFixed(2);
+  const recipient=encodeURIComponent(handle||entry.name);
   const deep=`venmo://paycharge?txn=charge&audience=private&recipients=${recipient}&amount=${a}&note=${note}`;
-  const web=`https://venmo.com/?txn=charge&audience=private&amount=${a}&note=${note}`;
+  const web=handle
+    ?`https://venmo.com/${handle}?txn=charge&audience=private&amount=${a}&note=${note}`
+    :`https://venmo.com/?txn=charge&audience=private&amount=${a}&note=${note}`;
   window.location.href=deep;setTimeout(()=>window.open(web,'_blank'),1500);
 }
 function vb(name,amt,exp){
-  const handle=getVenmoHandle(name);
+  const handle=(getVenmoHandle(name)||'').replace(/^@/,'');
   const note=encodeURIComponent(`${exp?.merchant||'expense'} ${exp?.date||''}`);
   const a=(+amt).toFixed(2);
-  const recipient=encodeURIComponent((handle||name).replace(/^@/,''));
+  const recipient=encodeURIComponent(handle||name);
   const deep=`venmo://paycharge?txn=charge&audience=private&recipients=${recipient}&amount=${a}&note=${note}`;
-  const web=`https://venmo.com/?txn=charge&audience=private&amount=${a}&note=${note}`;
+  const web=handle
+    ?`https://venmo.com/${handle}?txn=charge&audience=private&amount=${a}&note=${note}`
+    :`https://venmo.com/?txn=charge&audience=private&amount=${a}&note=${note}`;
   return`<a class="vb" href="${deep}" onclick="setTimeout(()=>window.open('${web}','_blank'),1500)"><svg viewBox="0 0 24 24"><path d="M19.5 2c.8 1.3 1.2 2.7 1.2 4.4 0 5.5-4.7 12.6-8.5 17.6H4.4L1 3.4l7.3-.7 1.8 14.2c1.7-2.8 3.8-7.2 3.8-10.2 0-1.6-.3-2.8-.7-3.7L19.5 2z"/></svg>Request $${a} from ${name}</a>`;
 }
 
