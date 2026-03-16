@@ -315,6 +315,34 @@ input.pf{display:none;}
 .hmpbtn:hover{border-color:var(--green);color:var(--green);background:var(--green-soft);}
 .hpaid-chip{display:inline-flex;align-items:center;gap:3px;padding:4px 8px;border-radius:6px;background:var(--green-soft);border:1px solid #bbf7d0;color:var(--green);font-size:0.58rem;font-weight:700;}
 .edit-split-btn{font-size:0.6rem;color:var(--muted);background:none;border:none;cursor:pointer;padding:4px 0 0;font-family:'Plus Jakarta Sans',sans-serif;text-decoration:underline;}
+.ibd-toggle{font-size:0.62rem;font-weight:600;color:var(--accent);background:var(--accent-soft);border:1px solid rgba(59,91,219,0.15);border-radius:7px;padding:4px 11px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.15s;margin-bottom:6px;}
+.ibd-table{font-size:0.68rem;border-top:1px solid var(--border);margin-top:4px;padding-top:6px;display:flex;flex-direction:column;gap:3px;}
+.ibd-row{display:grid;grid-template-columns:1fr 54px auto;gap:6px;align-items:center;padding:3px 0;border-bottom:1px solid var(--border);}
+.ibd-row:last-child{border:none;}
+.ibd-item{font-size:0.68rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ibd-price{font-size:0.67rem;font-family:'JetBrains Mono',monospace;font-weight:600;text-align:right;}
+.ibd-who{font-size:0.58rem;color:var(--muted);text-align:right;white-space:nowrap;}
+.share-btn{font-size:0.63rem;font-weight:600;padding:6px 12px;border-radius:7px;background:var(--bg3);border:1px solid var(--border2);color:var(--ink2);cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.15s;}
+.share-btn:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
+/* SHARED CARD VIEW */
+.card-view{max-width:480px;margin:0 auto;padding:28px 16px 60px;}
+.cv-header{text-align:center;padding:18px 0 12px;}
+.cv-logo{font-size:0.7rem;font-weight:800;letter-spacing:-0.02em;color:var(--muted);margin-bottom:14px;}
+.cv-merchant{font-size:1.4rem;font-weight:800;letter-spacing:-0.03em;margin-bottom:3px;}
+.cv-meta{font-size:0.68rem;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+.cv-amt{font-size:2rem;font-weight:800;color:var(--red);font-family:'JetBrains Mono',monospace;margin:10px 0 4px;}
+.cv-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:12px;box-shadow:var(--sh);}
+.cv-section{font-size:0.56rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:9px;font-family:'JetBrains Mono',monospace;}
+.cv-irow{display:grid;grid-template-columns:1fr 56px auto;gap:6px;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:0.72rem;}
+.cv-irow:last-child{border:none;}
+.cv-iname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.cv-iprice{font-family:'JetBrains Mono',monospace;font-weight:600;text-align:right;}
+.cv-iwho{font-size:0.59rem;color:var(--muted);text-align:right;}
+.cv-prow{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:0.78rem;}
+.cv-prow:last-child{border:none;}
+.cv-pname{font-weight:600;}
+.cv-powes{font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--amber);}
+.cv-footer{text-align:center;font-size:0.62rem;color:var(--muted);margin-top:18px;font-family:'JetBrains Mono',monospace;}
 
 .empty{text-align:center;padding:44px 20px;color:var(--muted);font-size:0.79rem;line-height:1.7;}
 .ei{font-size:1.9rem;margin-bottom:9px;}
@@ -490,6 +518,11 @@ input.pf{display:none;}
   <div id="rm"></div>
 </div>
 
+<!-- SHARED CARD VIEW -->
+<div class="page" id="page-card">
+  <div class="card-view" id="card-view-content"></div>
+</div>
+
 <!-- HISTORY -->
 <div class="page" id="page-history">
   <div id="hl"></div>
@@ -501,6 +534,8 @@ let currentUser=null,hist_cache=[];
 let rows=[],fld=[],sp={},sx={},venmoNames={},smsOn=false,txFlt='all';
 
 window.addEventListener('DOMContentLoaded',async()=>{
+  const cardM=location.pathname.match(/\/card\/([a-zA-Z0-9]+)/);
+  if(cardM){loadCardView(cardM[1]);return;}
   rSessions();
   await checkAuth();
 });
@@ -953,7 +988,9 @@ function renderPaidRows(i,entries){
     const nk=e.name.replace(/[^a-zA-Z0-9]/g,'_');
     return`<div class="pay-row" style="flex-direction:column;align-items:flex-start;gap:5px"><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap"><button class="vb" onclick="openVenmo(${i},${idx})"><svg viewBox="0 0 24 24"><path d="M19.5 2c.8 1.3 1.2 2.7 1.2 4.4 0 5.5-4.7 12.6-8.5 17.6H4.4L1 3.4l7.3-.7 1.8 14.2c1.7-2.8 3.8-7.2 3.8-10.2 0-1.6-.3-2.8-.7-3.7L19.5 2z"/></svg>Request $${e.owes.toFixed(2)} from ${e.name}</button><button class="mpbtn" onclick="markPaid(${i},${idx})">Mark paid ✓</button></div><div style="display:flex;align-items:center;gap:5px"><input id="vh-${i}-${idx}" class="venmo-handle-in" type="text" placeholder="@venmo_handle" value="${handle}" list="vhlist-${nk}" oninput="onHandleInput(${i},${idx},this.value)"/>${vhDatalist(nk)}</div></div>`;
   }).join('');
-  fl.innerHTML=`<div class="sc">✓ ${entries.map((e,idx)=>paid[idx]?`<span style="color:var(--green);font-weight:800">${e.name}</span>`:e.name).join(', ')}</div><div class="vr" style="flex-direction:column;align-items:flex-start;gap:5px;margin-top:6px">${rows}</div>${allPaid?`<div class="vh" style="color:var(--green);font-weight:600">✓ All settled!</div>`:''}<button class="edit-split-btn" onclick="editSplit(${i})">✎ Edit split</button>`;
+  const bd=sp[i]?.itemBreakdown;
+  const bdHtml=bd?.length?`<div style="margin-bottom:8px"><button class="ibd-toggle" id="ibd-tog-${i}" onclick="toggleBreakdownPanel(${i})">📋 View item breakdown ▾</button><div id="ibd-${i}" style="display:none" class="ibd-table">${bd.map(item=>{const who=item.type==='mine'?'Mine':([...item.people,...(item.includesMe?['Me']:[])]).join(', ')||'—';return`<div class="ibd-row"><span class="ibd-item">${item.name||'—'}</span><span class="ibd-price">$${item.price.toFixed(2)}</span><span class="ibd-who">${who}</span></div>`;}).join('')}</div></div>`:'' ;
+  fl.innerHTML=`<div class="sc">✓ ${entries.map((e,idx)=>paid[idx]?`<span style="color:var(--green);font-weight:800">${e.name}</span>`:e.name).join(', ')}</div><div class="vr" style="flex-direction:column;align-items:flex-start;gap:5px;margin-top:6px">${rows}</div>${allPaid?`<div class="vh" style="color:var(--green);font-weight:600">✓ All settled!</div>`:''}<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">${bdHtml}<button id="share-btn-${i}" class="share-btn" onclick="shareCard(${i})">🔗 Share breakdown</button><button class="edit-split-btn" onclick="editSplit(${i})">✎ Edit split</button></div>`;
 }
 
 function editSplit(i){
@@ -1286,13 +1323,17 @@ function applyItemSplit(i){
   const il=document.getElementById(`il-${i}`);if(!il)return;
   const irows=il.querySelectorAll('.item-row');
   const totals={};
+  const breakdown=[];
   irows.forEach(row=>{
+    const nm=row.querySelector('.item-name-in')?.value?.trim()||'';
     const price=parseFloat(row.querySelector('.item-price-in')?.value)||0;
     const {type,people,includesMe}=getItemAssignment(row);
+    if(nm||price)breakdown.push({name:nm,price,type,people,includesMe});
     if(type==='split'){const count=people.length+(includesMe?1:0);if(count>0){const each=price/count;people.forEach(p=>{totals[p]=(totals[p]||0)+each;});}}
   });
   const entries=Object.entries(totals).map(([name,owes])=>({name,owes}));
   if(!entries.length){alert('Assign at least one item to a person first.');return;}
+  if(!sp[i])sp[i]={};sp[i].itemBreakdown=breakdown;pSp();
   sMode(i,'item');
   const pl=document.getElementById(`pl-${i}`);if(!pl)return;
   pl.innerHTML='';
@@ -1304,6 +1345,50 @@ function applyItemSplit(i){
   pMap[i]=entries.length;
   calc(i);
   document.getElementById(`ip-${i}`).style.display='none';
+}
+
+// BREAKDOWN + SHARE
+function toggleBreakdownPanel(i){
+  const panel=document.getElementById(`ibd-${i}`);
+  const btn=document.getElementById(`ibd-tog-${i}`);
+  if(!panel)return;
+  const open=panel.style.display==='none';
+  panel.style.display=open?'block':'none';
+  if(btn)btn.textContent=open?'📋 Item breakdown ▴':'📋 View item breakdown ▾';
+}
+
+async function shareCard(i){
+  const s=sp[i];if(!s?.entries?.length)return;
+  const btn=document.getElementById(`share-btn-${i}`);
+  if(btn){btn.textContent='Generating…';btn.disabled=true;}
+  const exp=fld[i];
+  const payload={merchant:exp?.merchant,date:exp?.date,amount:exp?.amount,entries:s.entries,itemBreakdown:s.itemBreakdown||null,sharedAt:new Date().toISOString()};
+  try{
+    const res=await fetch('/api/card',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const {id}=await res.json();
+    const url=`${location.origin}/card/${id}`;
+    try{await navigator.clipboard.writeText(url);}catch(e){prompt('Copy this link:',url);}
+    if(btn){btn.textContent='✓ Link copied!';btn.style.color='var(--green)';setTimeout(()=>{btn.textContent='🔗 Share breakdown';btn.style.color='';btn.disabled=false;},3000);}
+  }catch(e){
+    if(btn){btn.textContent='🔗 Share breakdown';btn.disabled=false;}
+    alert('Could not generate link. Try again.');
+  }
+}
+
+async function loadCardView(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-card').classList.add('active');
+  const el=document.getElementById('card-view-content');
+  el.innerHTML=`<div class="cv-header"><div class="cv-logo">$÷ SplitCheck</div><div style="font-size:0.72rem;color:var(--muted)">Loading…</div></div>`;
+  try{
+    const res=await fetch(`/api/card/${id}`);
+    if(!res.ok){el.innerHTML=`<div class="cv-header"><div class="cv-logo">$÷ SplitCheck</div><div style="color:var(--red);font-size:0.8rem;margin-top:16px">This link has expired or doesn't exist.</div></div>`;return;}
+    const d=await res.json();
+    const allPaid=d.entries?.every(e=>e.paid);
+    const itemsHtml=d.itemBreakdown?.length?`<div class="cv-card"><div class="cv-section">Item breakdown</div>${d.itemBreakdown.map(item=>{const who=item.type==='mine'?'Mine':([...item.people,...(item.includesMe?['Me']:[])]).join(', ')||'—';return`<div class="cv-irow"><span class="cv-iname">${item.name||'—'}</span><span class="cv-iprice">$${(+item.price).toFixed(2)}</span><span class="cv-iwho">${who}</span></div>`;}).join('')}</div>`:'';
+    const splitsHtml=`<div class="cv-card"><div class="cv-section">Split breakdown</div>${d.entries.map(e=>`<div class="cv-prow"><span class="cv-pname">${e.name}</span><span class="cv-powes">${e.paid?'✓ Paid':'$'+e.owes.toFixed(2)}</span></div>`).join('')}</div>`;
+    el.innerHTML=`<div class="cv-header"><div class="cv-logo">$÷ SplitCheck</div><div class="cv-merchant">${d.merchant||'Expense'}</div><div class="cv-meta">${d.date||''}</div><div class="cv-amt">$${(+d.amount).toFixed(2)}</div>${allPaid?`<span class="schip sc-done" style="display:inline-flex">✓ All settled</span>`:''}</div>${itemsHtml}${splitsHtml}<div class="cv-footer">Shared via SplitCheck · ${new Date(d.sharedAt).toLocaleDateString()}</div>`;
+  }catch(e){el.innerHTML=`<div class="cv-header"><div class="cv-logo">$÷ SplitCheck</div><div style="color:var(--red);font-size:0.8rem;margin-top:16px">Error loading card.</div></div>`;}
 }
 
 // SESSIONS

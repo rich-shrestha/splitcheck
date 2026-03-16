@@ -1,6 +1,7 @@
 {
   "rewrites": [
-    { "source": "/view/:id", "destination": "/index.html" }
+    { "source": "/view/:id", "destination": "/index.html" },
+    { "source": "/card/:id", "destination": "/index.html" }
   ],
   "headers": [
     {
