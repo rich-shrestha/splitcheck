@@ -624,14 +624,21 @@ document.getElementById('fi').addEventListener('change',e=>lf([...e.target.files
 
 function lf(files){
   const csvs=files.filter(f=>f.name.endsWith('.csv'));if(!csvs.length)return;
-  rows=[];let done=0;
+  let done=0;
   const txKey=r=>`${gd(r)}|${ga(r)}|${gm(r).toLowerCase()}`;
   csvs.forEach(file=>{const r=new FileReader();r.onload=e=>{
     const parsed=parseCSV(e.target.result).map(row=>({...row,_source:file.name}));
     const seen=new Set(rows.map(txKey));
     const unique=parsed.filter(row=>!seen.has(txKey(row)));
     rows=[...rows,...unique];
-    if(++done===csvs.length){try{localStorage.setItem(TK,JSON.stringify(rows));}catch(ee){}rcf();dz.classList.add('loaded');dz.innerHTML=`<span class="di">✅</span><p><strong>${csvs.map(f=>f.name).join(', ')}</strong><br/>${rows.length} transactions loaded${csvs.length>1?` (${rows.length}<${csvs.reduce((s,f)=>s+parseCSV(''),0)} after dedup)`:''}</p>`;spv();document.getElementById('scn-btn').disabled=false;document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;saveSess(csvs.map(f=>f.name),rows);}
+    if(++done===csvs.length){
+      try{localStorage.setItem(TK,JSON.stringify(rows));}catch(ee){}
+      rcf();
+      const allSources=[...new Set(rows.map(r=>r._source).filter(Boolean))];
+      dz.classList.add('loaded');
+      dz.innerHTML=`<span class="di">✅</span><p><strong>${allSources.join(' + ')}</strong><br/>${rows.length} transactions loaded</p>`;
+      spv();document.getElementById('scn-btn').disabled=false;document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;saveSess(allSources,rows);
+    }
   };r.readAsText(file);});
 }
 
@@ -772,7 +779,7 @@ function reviewPriorVenmo(i){
 
 // MODE BODIES
 const mMap={},pMap={};
-function eqB(i){return`<div class="pl" id="pl-${i}">${eqR(i,0)}${eqR(i,1)}</div><button class="ab" onclick="aP(${i})">+ Add person</button>`;}
+function eqB(i){return`<div class="pl" id="pl-${i}">${eqR(i,0)}${eqR(i,1)}</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px"><button class="ab" onclick="aP(${i})">+ Add person</button><button class="ichip" id="meinc-${i}" data-on="0" onclick="toggleMeInc(${i})" style="font-size:0.58rem;padding:3px 9px">👤 + Include me</button></div>`;}
 function eqR(i,n){return`<div class="pr" id="pr-${i}-${n}"><input type="text" placeholder="Name" oninput="calc(${i})"/><button class="rb" onclick="rP(${i},${n})">×</button></div>`;}
 function pctB(i){return`<div class="pl" id="pl-${i}">${pR(i,0)}${pR(i,1)}</div><button class="ab" onclick="aP(${i})">+ Add person</button>`;}
 function pR(i,n){return`<div class="pr" id="pr-${i}-${n}"><input type="text" placeholder="Name" oninput="calc(${i})"/><input type="number" class="nb" placeholder="50" oninput="calc(${i})"/><span class="sym">%</span><button class="rb" onclick="rP(${i},${n})">×</button></div>`;}
@@ -793,10 +800,16 @@ function aP(i){const m=mMap[i]||'eq';pMap[i]=pMap[i]||2;const n=pMap[i]++;const 
 function rP(i,n){document.getElementById(`pr-${i}-${n}`)?.remove();calc(i);}
 function prs(i){return Array.from(document.getElementById(`pl-${i}`)?.children||[]);}
 
+function toggleMeInc(i){const btn=document.getElementById(`meinc-${i}`);if(!btn)return;const on=btn.dataset.on==='1';btn.dataset.on=on?'0':'1';btn.classList.toggle('active',!on);btn.textContent=on?'👤 + Include me':'👤 − Included';calc(i);}
 function calc(i){
   refreshItemChips(i);
   const m=mMap[i]||'eq',amt=fld[i]?.amount||0,rs=prs(i);
-  if(m==='eq'){const ns=rs.map(r=>r.querySelector('input[type="text"]').value.trim()).filter(Boolean);if(!ns.length)return;sRes(i,ns.map(n=>({name:n,owes:amt/ns.length})));}
+  if(m==='eq'){
+    const ns=rs.map(r=>r.querySelector('input[type="text"]').value.trim()).filter(Boolean);if(!ns.length)return;
+    const meInc=document.getElementById(`meinc-${i}`)?.dataset.on==='1';
+    const div=ns.length+(meInc?1:0);
+    sRes(i,ns.map(n=>({name:n,owes:amt/div})),meInc?`You each pay $${(amt/div).toFixed(2)} (${div}-way split, your share kept)`:null);
+  }
   else if(m==='pct'){const ents=rs.map(r=>({name:r.querySelector('input[type="text"]').value.trim(),pct:parseFloat(r.querySelector('.nb')?.value)||0})).filter(e=>e.name);const tot=ents.reduce((s,e)=>s+e.pct,0);sRes(i,ents.map(e=>({name:e.name,owes:(e.pct/100)*amt})),tot!==100?`${tot.toFixed(0)}% — needs to be 100%`:null);}
   else{sRes(i,rs.map(r=>({name:r.querySelector('input[type="text"]').value.trim(),owes:parseFloat(r.querySelector('.nb')?.value)||0})).filter(e=>e.name));}
 }
