@@ -309,6 +309,12 @@ input.pf{display:none;}
 .hiv{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:7px;}
 .db{font-size:0.58rem;color:var(--muted);background:none;border:none;cursor:pointer;font-family:'JetBrains Mono',monospace;}
 .db:hover{color:var(--red);}
+.hi.settled{opacity:0.5;border-color:var(--border);}
+.hi.settled .hia{color:var(--muted);}
+.hmpbtn{font-size:0.58rem;font-weight:600;padding:4px 9px;border-radius:6px;background:var(--bg2);border:1px solid var(--border);color:var(--muted);cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.15s;white-space:nowrap;}
+.hmpbtn:hover{border-color:var(--green);color:var(--green);background:var(--green-soft);}
+.hpaid-chip{display:inline-flex;align-items:center;gap:3px;padding:4px 8px;border-radius:6px;background:var(--green-soft);border:1px solid #bbf7d0;color:var(--green);font-size:0.58rem;font-weight:700;}
+.edit-split-btn{font-size:0.6rem;color:var(--muted);background:none;border:none;cursor:pointer;padding:4px 0 0;font-family:'Plus Jakarta Sans',sans-serif;text-decoration:underline;}
 
 .empty{text-align:center;padding:44px 20px;color:var(--muted);font-size:0.79rem;line-height:1.7;}
 .ei{font-size:1.9rem;margin-bottom:9px;}
@@ -947,7 +953,30 @@ function renderPaidRows(i,entries){
     const nk=e.name.replace(/[^a-zA-Z0-9]/g,'_');
     return`<div class="pay-row" style="flex-direction:column;align-items:flex-start;gap:5px"><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap"><button class="vb" onclick="openVenmo(${i},${idx})"><svg viewBox="0 0 24 24"><path d="M19.5 2c.8 1.3 1.2 2.7 1.2 4.4 0 5.5-4.7 12.6-8.5 17.6H4.4L1 3.4l7.3-.7 1.8 14.2c1.7-2.8 3.8-7.2 3.8-10.2 0-1.6-.3-2.8-.7-3.7L19.5 2z"/></svg>Request $${e.owes.toFixed(2)} from ${e.name}</button><button class="mpbtn" onclick="markPaid(${i},${idx})">Mark paid ✓</button></div><div style="display:flex;align-items:center;gap:5px"><input id="vh-${i}-${idx}" class="venmo-handle-in" type="text" placeholder="@venmo_handle" value="${handle}" list="vhlist-${nk}" oninput="onHandleInput(${i},${idx},this.value)"/>${vhDatalist(nk)}</div></div>`;
   }).join('');
-  fl.innerHTML=`<div class="sc">✓ ${entries.map((e,idx)=>paid[idx]?`<span style="color:var(--green);font-weight:800">${e.name}</span>`:e.name).join(', ')}</div><div class="vr" style="flex-direction:column;align-items:flex-start;gap:5px;margin-top:6px">${rows}</div>${allPaid?`<div class="vh" style="color:var(--green);font-weight:600">✓ All settled!</div>`:''}`;
+  fl.innerHTML=`<div class="sc">✓ ${entries.map((e,idx)=>paid[idx]?`<span style="color:var(--green);font-weight:800">${e.name}</span>`:e.name).join(', ')}</div><div class="vr" style="flex-direction:column;align-items:flex-start;gap:5px;margin-top:6px">${rows}</div>${allPaid?`<div class="vh" style="color:var(--green);font-weight:600">✓ All settled!</div>`:''}<button class="edit-split-btn" onclick="editSplit(${i})">✎ Edit split</button>`;
+}
+
+function editSplit(i){
+  const s=sp[i];if(!s)return;
+  const c=document.getElementById(`ec-${i}`);if(!c)return;
+  c.classList.remove('done','col','skp','venmo-pending');c.classList.add('cur');
+  const est=document.getElementById(`est-${i}`);if(est)est.innerHTML='';
+  const m=s.mode||'eq';sMode(i,m);
+  const pl=document.getElementById(`pl-${i}`);if(!pl)return;
+  pl.innerHTML='';
+  s.entries.forEach((e,n)=>{
+    const d=document.createElement('div');d.className='pr';d.id=`pr-${i}-${n}`;
+    const amt=fld[i]?.amount||0;
+    if(m==='eq')d.innerHTML=`<input type="text" placeholder="Name" oninput="calc(${i})" value="${e.name.replace(/"/g,'&quot;')}"/><button class="rb" onclick="rP(${i},${n})">×</button>`;
+    else if(m==='pct'){const pct=amt?(e.owes/amt*100).toFixed(1):0;d.innerHTML=`<input type="text" placeholder="Name" oninput="calc(${i})" value="${e.name.replace(/"/g,'&quot;')}"/><input type="number" class="nb" value="${pct}" oninput="calc(${i})"/><span class="sym">%</span><button class="rb" onclick="rP(${i},${n})">×</button>`;}
+    else d.innerHTML=`<input type="text" placeholder="Name" oninput="calc(${i})" value="${e.name.replace(/"/g,'&quot;')}"/><input type="number" class="nb" value="${e.owes.toFixed(2)}" step="0.01" oninput="calc(${i})"/><button class="rb" onclick="rP(${i},${n})">×</button>`;
+    pl.appendChild(d);
+  });
+  pMap[i]=s.entries.length;
+  const fl=document.getElementById(`fl-${i}`);if(fl)fl.innerHTML='';
+  document.getElementById(`rp-${i}`).style.display='none';
+  calc(i);
+  setTimeout(()=>c.scrollIntoView({behavior:'smooth',block:'center'}),80);
 }
 
 function markPaid(i,idx){
@@ -1069,12 +1098,34 @@ function rRecap(){
 // HISTORY
 function sHist(i,entries,photo,histId){const exp=fld[i];if(!exp)return;const rec={id:histId||`${exp.merchant}-${exp.date}-${Date.now()}`,merchant:exp.merchant,date:exp.date,amount:exp.amount,category:exp.category||'',entries,photo:photo||null,savedAt:new Date().toISOString()};let h=gHist();h=h.filter(x=>!(x.merchant===exp.merchant&&x.date===exp.date));h.unshift(rec);hist_cache=h;try{localStorage.setItem(HK,JSON.stringify(h));}catch(e){}rHist();}
 function gHist(){if(hist_cache&&hist_cache.length)return hist_cache;try{return JSON.parse(localStorage.getItem(HK)||'[]');}catch(e){return[];}}
-function rHist(){const h=gHist(),el=document.getElementById('hl');if(!el)return;if(!h.length){el.innerHTML=`<div class="empty"><div class="ei">🗂</div>No history yet.</div>`;return;}el.innerHTML=h.map(x=>`<div class="hi">${x.photo?`<img class="him" src="${x.photo}"/>`:''}
-  <div class="hitp"><div><div class="hin">${x.merchant}</div><div class="hid">${x.date}</div></div><div class="hia">$${x.amount.toFixed(2)}</div></div>
-  <div class="hip">${x.entries.map(e=>`<div class="hipp"><div class="hpn">${e.name}</div><div class="hpa">$${e.owes.toFixed(2)}</div></div>`).join('')}</div>
-  <div class="hiv">${x.entries.map(e=>vb(e.name,e.owes,x)).join('')}</div>
-  <button class="db" onclick="dHist('${x.id}')">Remove</button></div>`).join('');}
-function dHist(id){let h=gHist().filter(x=>x.id!==id);try{localStorage.setItem(HK,JSON.stringify(h));}catch(e){}rHist();rRecap();}
+function rHist(){
+  const h=gHist(),el=document.getElementById('hl');if(!el)return;
+  if(!h.length){el.innerHTML=`<div class="empty"><div class="ei">🗂</div>No history yet.</div>`;return;}
+  el.innerHTML=h.map(x=>{
+    const allPaid=x.entries.length>0&&x.entries.every(e=>e.paid);
+    const entryRows=x.entries.map((e,idx)=>{
+      if(e.paid)return`<div class="pay-row"><span class="hpaid-chip">✓ ${e.name} · $${e.owes.toFixed(2)}</span></div>`;
+      return`<div class="pay-row" style="gap:5px;flex-wrap:wrap">${vb(e.name,e.owes,x)}<button class="hmpbtn" onclick="markHistPaid('${x.id}',${idx})">Mark paid ✓</button></div>`;
+    }).join('');
+    return`<div class="hi${allPaid?' settled':''}">
+      ${x.photo?`<img class="him" src="${x.photo}"/>`:''}
+      <div class="hitp"><div><div class="hin">${x.merchant}</div><div class="hid">${x.date}</div></div><div class="hia">$${x.amount.toFixed(2)}</div></div>
+      <div class="vr" style="flex-direction:column;gap:5px;margin-bottom:9px">${entryRows}</div>
+      ${allPaid?`<div class="vh" style="color:var(--green);font-weight:600;margin-bottom:7px">✓ All settled!</div>`:''}
+      <button class="db" onclick="dHist('${x.id}')">Remove</button>
+    </div>`;
+  }).join('');
+}
+function markHistPaid(histId,idx){
+  let h=gHist();const hi=h.findIndex(x=>x.id===histId);if(hi<0)return;
+  h[hi].entries[idx]={...h[hi].entries[idx],paid:!h[hi].entries[idx].paid};
+  hist_cache=h;try{localStorage.setItem(HK,JSON.stringify(h));}catch(e){}
+  syncToCloud('history',h);
+  // Keep current session card in sync
+  Object.entries(sp).forEach(([i,s])=>{if(s.histId===histId){if(!s.paid)s.paid={};s.paid[idx]=h[hi].entries[idx].paid;pSp();syncToCloud('splits',sp);renderPaidRows(+i,s.entries);}});
+  rHist();rRecap();
+}
+function dHist(id){let h=gHist().filter(x=>x.id!==id);hist_cache=h;try{localStorage.setItem(HK,JSON.stringify(h));}catch(e){}syncToCloud('history',h);rHist();rRecap();}
 
 // VENMO
 function saveVenmoHandle(name,handle){if(!name)return;venmoNames[name]=handle;try{localStorage.setItem(VK,JSON.stringify(venmoNames));}catch(e){}syncToCloud('venmo',venmoNames);}
