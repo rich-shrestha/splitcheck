@@ -7,16 +7,22 @@ export default async function handler(req, res) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'API key not configured' });
 
-  const prompt = `Extract purchased items from this receipt or order confirmation. Return ONLY valid JSON with no markdown:
-{"merchant":"...","total":0.00,"items":[{"name":"...","price":0.00}]}
-Rules:
-- Include every product, food item, or grocery line with a price
-- This may be a grocery receipt, restaurant check, Amazon/Whole Foods order, or any store receipt
-- For order confirmations: include each ordered item and its price
-- Exclude: tax, tip, subtotal, discount lines, delivery fee, service fee, bag fee
-- Use the final line price for each item (after any per-item discount)
-- Always return at least the items array, even if empty
-- Do NOT return markdown, just raw JSON${amount ? `\nExpected total: ~$${amount}` : ''}`;
+  const prompt = `You are reading a receipt or order confirmation. Extract every purchased item and its price.
+
+Return ONLY this exact JSON format with no markdown, no explanation, no code fences:
+{"merchant":"store name","total":0.00,"items":[{"name":"item name","price":0.00}]}
+
+IMPORTANT RULES:
+1. Include ALL products, groceries, food items, drinks — anything that was purchased
+2. For Whole Foods / Amazon grocery orders: each line like "Organic Milk $4.99" is one item
+3. For restaurant receipts: each menu item with its price
+4. EXCLUDE these line types: Tax, Tip, Subtotal, Total, Discount, Savings, Bag Fee, Delivery Fee, Service Fee, Estimated Tax
+5. If an item has a sale price, use the final sale price (not original)
+6. If you see "2x Item Name $9.98" treat it as one item at $9.98
+7. Even if the receipt is blurry or partially readable, extract what you can
+8. NEVER return an empty items array if you can see any products with prices${amount ? `\nThe order total should be around $${amount} — use this to sanity-check your extraction` : ''}
+
+If you truly cannot find any items, return: {"merchant":"Unknown","total":0,"items":[]}`;
 
   const messages = image
     ? [{ role: 'user', content: [
@@ -34,7 +40,7 @@ Rules:
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 1024,
         messages,
       }),
