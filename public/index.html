@@ -965,9 +965,11 @@ function savS(i){
   const photo=sp[i]?.photo||null;
   const pdfName=sp[i]?.pdfName||null,pdfAmt=sp[i]?.pdfAmt||null;
   const paid=sp[i]?.paid||{};
+  const itemBreakdown=sp[i]?.itemBreakdown||null;
   const histId=`${(fld[i]?.merchant||'exp').replace(/\s+/g,'-')}-${fld[i]?.date||''}-${Date.now()}`;
-  sp[i]={entries,mode:m,photo,pdfName,pdfAmt,savedAt:new Date().toISOString(),paid,histId};
-  pSp();sHist(i,entries,photo,histId);mDone(i,entries,true);upProg();upStats();rRecap();adv(i);syncToCloud("history",gHist());syncToCloud("skipped",sx);syncToCloud("splits",sp);
+  const exp=fld[i];
+  sp[i]={entries,mode:m,photo,pdfName,pdfAmt,savedAt:new Date().toISOString(),paid,histId,itemBreakdown,merchant:exp?.merchant,date:exp?.date,amount:exp?.amount};
+  pSp();sHist(i,entries,photo,histId);mDone(i,entries,true);upProg();upStats();rRecap();syncToCloud("history",gHist());syncToCloud("skipped",sx);syncToCloud("splits",sp);
 }
 
 function mDone(i,entries,keepOpen=false){
@@ -1361,8 +1363,8 @@ async function shareCard(i){
   const s=sp[i];if(!s?.entries?.length)return;
   const btn=document.getElementById(`share-btn-${i}`);
   if(btn){btn.textContent='Generating…';btn.disabled=true;}
-  const exp=fld[i];
-  const payload={merchant:exp?.merchant,date:exp?.date,amount:exp?.amount,entries:s.entries,itemBreakdown:s.itemBreakdown||null,sharedAt:new Date().toISOString()};
+  const exp=fld[i]||{};
+  const payload={merchant:s.merchant||exp.merchant,date:s.date||exp.date,amount:s.amount||exp.amount,entries:s.entries,itemBreakdown:s.itemBreakdown||null,sharedAt:new Date().toISOString()};
   try{
     const res=await fetch('/api/card',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const {id}=await res.json();
