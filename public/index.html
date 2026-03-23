@@ -448,9 +448,9 @@ input.pf{display:none;}
     <div class="clabel">Origin CSV Export</div>
     <div id="dz" onclick="document.getElementById('fi').click()">
       <span class="di">📂</span>
-      <p>Drop your Origin export here<br/>or <span class="br">browse to select</span></p>
+      <p>Drop your CSV, bank statement image, or PDF<br/>or <span class="br">browse to select</span></p>
     </div>
-    <input type="file" id="fi" accept=".csv" multiple/>
+    <input type="file" id="fi" accept=".csv,image/*,.pdf" multiple/>
     <div id="pb"></div>
     <div class="frow">
       <div class="f"><label>Flag over ($)</label><input type="number" id="thr" value="40" min="1" oninput="osc()"/></div>
@@ -686,23 +686,61 @@ dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');lf
 document.getElementById('fi').addEventListener('change',e=>lf([...e.target.files]));
 
 function lf(files){
-  const csvs=files.filter(f=>f.name.endsWith('.csv'));if(!csvs.length)return;
-  let done=0;
-  const txKey=r=>`${gd(r)}|${ga(r)}|${gm(r).toLowerCase()}`;
-  csvs.forEach(file=>{const r=new FileReader();r.onload=e=>{
-    const parsed=parseCSV(e.target.result).map(row=>({...row,_source:file.name}));
-    const seen=new Set(rows.map(txKey));
-    const unique=parsed.filter(row=>!seen.has(txKey(row)));
-    rows=[...rows,...unique];
-    if(++done===csvs.length){
-      try{localStorage.setItem(TK,JSON.stringify(rows));}catch(ee){}
-      rcf();
-      const allSources=[...new Set(rows.map(r=>r._source).filter(Boolean))];
-      dz.classList.add('loaded');
-      dz.innerHTML=`<span class="di">✅</span><p><strong>${allSources.join(' + ')}</strong><br/>${rows.length} transactions loaded</p>`;
-      spv();document.getElementById('scn-btn').disabled=false;document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;saveSess(allSources,rows);
+  const csvs=files.filter(f=>f.name.toLowerCase().endsWith('.csv'));
+  const imgs=files.filter(f=>!f.name.toLowerCase().endsWith('.csv'));
+  if(csvs.length){
+    let done=0;
+    const txKey=r=>`${gd(r)}|${ga(r)}|${gm(r).toLowerCase()}`;
+    csvs.forEach(file=>{const r=new FileReader();r.onload=e=>{
+      const parsed=parseCSV(e.target.result).map(row=>({...row,_source:file.name}));
+      const seen=new Set(rows.map(txKey));
+      const unique=parsed.filter(row=>!seen.has(txKey(row)));
+      rows=[...rows,...unique];
+      if(++done===csvs.length){
+        try{localStorage.setItem(TK,JSON.stringify(rows));}catch(ee){}
+        rcf();
+        const allSources=[...new Set(rows.map(r=>r._source).filter(Boolean))];
+        dz.classList.add('loaded');
+        dz.innerHTML=`<span class="di">✅</span><p><strong>${allSources.join(' + ')}</strong><br/>${rows.length} transactions loaded</p>`;
+        spv();document.getElementById('scn-btn').disabled=false;document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;saveSess(allSources,rows);
+      }
+    };r.readAsText(file);});
+  }
+  if(imgs.length){imgs.forEach(f=>parseStatement(f));}
+}
+
+async function parseStatement(file){
+  dz.classList.remove('loaded');
+  dz.innerHTML=`<span class="di">🔍</span><p><strong>${file.name}</strong><br/><span style="color:var(--accent)">Reading statement… this may take a few seconds</span></p>`;
+  try{
+    let payload;
+    if(file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf')){
+      payload=await getPDFPayload(file);
+    }else{
+      const dataUrl=await new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsDataURL(file);});
+      const base64=await resizeImage(dataUrl,2400);
+      payload={image:base64,mimeType:'image/jpeg'};
     }
-  };r.readAsText(file);});
+    const res=await fetch('/api/parse-statement',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const data=await res.json();
+    if(!data.transactions?.length){
+      dz.innerHTML=`<span class="di">⚠️</span><p><strong>${file.name}</strong><br/>No transactions found — try a clearer image or use CSV export</p>`;
+      return;
+    }
+    const txKey=r=>`${gd(r)}|${ga(r)}|${gm(r).toLowerCase()}`;
+    const newRows=data.transactions.map(t=>({merchant:t.merchant,date:t.date,amount:String(t.amount),category:t.category,_source:file.name}));
+    const seen=new Set(rows.map(txKey));
+    const unique=newRows.filter(r=>!seen.has(txKey(r)));
+    rows=[...rows,...unique];
+    try{localStorage.setItem(TK,JSON.stringify(rows));}catch(e){}
+    rcf();
+    const allSources=[...new Set(rows.map(r=>r._source).filter(Boolean))];
+    dz.classList.add('loaded');
+    dz.innerHTML=`<span class="di">✅</span><p><strong>${allSources.join(' + ')}</strong><br/>${rows.length} transactions loaded (${unique.length} new from ${file.name})</p>`;
+    spv();document.getElementById('scn-btn').disabled=false;document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;saveSess(allSources,rows);
+  }catch(e){
+    dz.innerHTML=`<span class="di">⚠️</span><p>Error reading ${file.name}: ${e.message}</p>`;
+  }
 }
 
 function parseCSV(t){const ls=t.trim().split('\n');if(ls.length<2)return[];const hs=ls[0].split(',').map(h=>h.replace(/"/g,'').trim().toLowerCase());return ls.slice(1).map(l=>{const c=sl2(l),r={};hs.forEach((h,i)=>r[h]=(c[i]||'').replace(/"/g,'').trim());return r;}).filter(r=>Object.values(r).some(v=>v));}
@@ -803,14 +841,14 @@ function bCard(e,i){
       <div id="il-${i}"></div>
       <button class="ab" style="margin-top:6px" onclick="addItemRow(${i})">+ Add item</button>
       <div class="items-summary" id="isum-${i}"></div>
-      <button class="apply-split-btn" onclick="applyItemSplit(${i})">Apply this split to the card →</button>
+      <button class="apply-split-btn" onclick="applyAndSave(${i})">Save Split from Items →</button>
     </div>
     <div class="ecfoot">
       <div class="fl" id="fl-${i}"></div>
       <div style="display:flex;gap:6px;flex-shrink:0">
         <button class="skbtn" onclick="mAlr(${i})">Already requested</button>
         <button class="skbtn" onclick="mSolo(${i})">Just me 👤</button>
-        <button class="svbtn" onclick="savS(${i})">Save Split →</button>
+        <button class="svbtn" onclick="savS(${i})">Save & Get Venmo →</button>
       </div>
     </div>
   </div>`;
@@ -1348,6 +1386,8 @@ function applyItemSplit(i){
   calc(i);
   document.getElementById(`ip-${i}`).style.display='none';
 }
+
+function applyAndSave(i){applyItemSplit(i);setTimeout(()=>savS(i),50);}
 
 // BREAKDOWN + SHARE
 function toggleBreakdownPanel(i){
