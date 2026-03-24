@@ -2,6 +2,9 @@
   "name": "splitcheck",
   "version": "3.0.0",
   "private": true,
+  "scripts": {
+    "deploy": "git add -A && git commit -m 'update' && git push && npx vercel --prod"
+  },
   "devDependencies": {
     "vercel": "^33.0.0"
   },

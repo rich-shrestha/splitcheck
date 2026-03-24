@@ -811,11 +811,6 @@ function bCard(e,i){
       </div>
       <div class="icol">
         <div class="slbl">Who split this with you?</div>
-        <div class="mds">
-          <button class="mb on" id="me-${i}" onclick="sMode(${i},'eq')">⚖ Equal</button>
-          <button class="mb" id="mi-${i}" onclick="sMode(${i},'item')">🧾 By Item</button>
-        </div>
-        <div id="mode-hint-${i}" style="font-size:0.62rem;color:var(--muted);margin:4px 0 8px;line-height:1.5">Split the total evenly — enter names below</div>
         <div id="mb-${i}">${eqB(i)}</div>
         <div class="rp" id="rp-${i}"></div>
       </div>
@@ -876,34 +871,20 @@ function pR(i,n){return`<div class="pr" id="pr-${i}-${n}"><input type="text" pla
 function itmB(i){return`<div class="pl" id="pl-${i}">${iR(i,0)}${iR(i,1)}</div><button class="ab" onclick="aP(${i})">+ Add person</button>`;}
 function iR(i,n){return`<div class="pr" id="pr-${i}-${n}"><input type="text" placeholder="Name" oninput="calc(${i})"/><input type="number" class="nb" placeholder="0.00" step="0.01" oninput="calc(${i})"/><button class="rb" onclick="rP(${i},${n})">×</button></div>`;}
 
-function sMode(i,m){mMap[i]=m;['eq','pct','item'].forEach(x=>document.getElementById(`m${x[0]}-${i}`)?.classList.toggle('on',x[0]===m[0]));['me','mp','mi'].forEach((id,j)=>document.getElementById(`${id.replace('m','m')}-${i}`)?.classList.toggle('on',j===['eq','pct','item'].indexOf(m)));document.getElementById(`mb-${i}`).innerHTML=m==='eq'?eqB(i):m==='pct'?pctB(i):itmB(i);document.getElementById(`rp-${i}`).style.display='none';}
+function sMode(i,m){mMap[i]=m;document.getElementById(`rp-${i}`).style.display='none';}
 
-// fix mode button toggle
-function sMode(i,m){
-  mMap[i]=m;
-  [['me',m==='eq'],['mi',m==='item']].forEach(([id,on])=>document.getElementById(`${id}-${i}`)?.classList.toggle('on',on));
-  document.getElementById(`mb-${i}`).innerHTML=m==='eq'?eqB(i):m==='pct'?pctB(i):itmB(i);
-  document.getElementById(`rp-${i}`).style.display='none';
-  const hints={eq:'Split the total evenly — enter names below',item:'Receipt items are assigned below — tap each chip to split',pct:'Assign a custom dollar amount to each person'};
-  const hint=document.getElementById(`mode-hint-${i}`);if(hint)hint.textContent=hints[m]||'';
-}
-
-function aP(i){const m=mMap[i]||'eq';pMap[i]=pMap[i]||2;const n=pMap[i]++;const pl=document.getElementById(`pl-${i}`),d=document.createElement('div');d.className='pr';d.id=`pr-${i}-${n}`;if(m==='eq')d.innerHTML=`<input type="text" placeholder="Name" oninput="calc(${i})"/><button class="rb" onclick="rP(${i},${n})">×</button>`;else if(m==='pct')d.innerHTML=`<input type="text" placeholder="Name" oninput="calc(${i})"/><input type="number" class="nb" placeholder="0" oninput="calc(${i})"/><span class="sym">%</span><button class="rb" onclick="rP(${i},${n})">×</button>`;else d.innerHTML=`<input type="text" placeholder="Name" oninput="calc(${i})"/><input type="number" class="nb" placeholder="0.00" step="0.01" oninput="calc(${i})"/><button class="rb" onclick="rP(${i},${n})">×</button>`;pl.appendChild(d);}
+function aP(i){pMap[i]=pMap[i]||2;const n=pMap[i]++;const pl=document.getElementById(`pl-${i}`),d=document.createElement('div');d.className='pr';d.id=`pr-${i}-${n}`;d.innerHTML=`<input type="text" placeholder="Name" oninput="calc(${i})"/><button class="rb" onclick="rP(${i},${n})">×</button>`;pl.appendChild(d);}
 function rP(i,n){document.getElementById(`pr-${i}-${n}`)?.remove();calc(i);}
 function prs(i){return Array.from(document.getElementById(`pl-${i}`)?.children||[]);}
 
 function toggleMeInc(i){const btn=document.getElementById(`meinc-${i}`);if(!btn)return;const on=btn.dataset.on==='1';btn.dataset.on=on?'0':'1';btn.classList.toggle('active',!on);btn.textContent=on?'👤 + Include me':'👤 − Included';calc(i);}
 function calc(i){
   refreshItemChips(i);
-  const m=mMap[i]||'eq',amt=fld[i]?.amount||0,rs=prs(i);
-  if(m==='eq'){
-    const ns=rs.map(r=>r.querySelector('input[type="text"]').value.trim()).filter(Boolean);if(!ns.length)return;
-    const meInc=document.getElementById(`meinc-${i}`)?.dataset.on==='1';
-    const div=ns.length+(meInc?1:0);
-    sRes(i,ns.map(n=>({name:n,owes:amt/div})),meInc?`You each pay $${(amt/div).toFixed(2)} (${div}-way split, your share kept)`:null);
-  }
-  else if(m==='pct'){const ents=rs.map(r=>({name:r.querySelector('input[type="text"]').value.trim(),pct:parseFloat(r.querySelector('.nb')?.value)||0})).filter(e=>e.name);const tot=ents.reduce((s,e)=>s+e.pct,0);sRes(i,ents.map(e=>({name:e.name,owes:(e.pct/100)*amt})),tot!==100?`${tot.toFixed(0)}% — needs to be 100%`:null);}
-  else{sRes(i,rs.map(r=>({name:r.querySelector('input[type="text"]').value.trim(),owes:parseFloat(r.querySelector('.nb')?.value)||0})).filter(e=>e.name));}
+  const amt=fld[i]?.amount||0,rs=prs(i);
+  const ns=rs.map(r=>r.querySelector('input[type="text"]').value.trim()).filter(Boolean);if(!ns.length)return;
+  const meInc=document.getElementById(`meinc-${i}`)?.dataset.on==='1';
+  const div=ns.length+(meInc?1:0);
+  sRes(i,ns.map(n=>({name:n,owes:amt/div})),meInc?`You each pay $${(amt/div).toFixed(2)} (${div}-way split, your share kept)`:null);
 }
 function sRes(i,entries,warn){const b=document.getElementById(`rp-${i}`);if(!b)return;b.style.display='block';b.innerHTML=entries.map(e=>`<div class="rr"><span class="rn">${e.name}</span><span class="ra">owes $${e.owes.toFixed(2)}</span></div>`).join('')+(warn?`<div class="pw">⚠ ${warn}</div>`:'');}
 
@@ -988,26 +969,37 @@ function sPDFAttach(i,name,amt){
 }
 
 function savS(i){
-  // if items panel is open and has assignments, auto-apply before saving
+  const amt=fld[i]?.amount||0;
+  let entries=[],breakdown=null;
+  // try to build entries from item assignments if panel is open
   const panel=document.getElementById(`ip-${i}`);
   if(panel?.style.display!=='none'){
     const il=document.getElementById(`il-${i}`);
     const irows=il?.querySelectorAll('.item-row')||[];
-    const hasAssignment=Array.from(irows).some(row=>{const a=getItemAssignment(row);return a.type==='split'&&(a.people.length||a.includesMe);});
-    if(hasAssignment){applyItemSplit(i);}
+    const totals={};const bd=[];
+    irows.forEach(row=>{
+      const nm=row.querySelector('.item-name-in')?.value?.trim()||'';
+      const price=parseFloat(row.querySelector('.item-price-in')?.value)||0;
+      const {type,people,includesMe}=getItemAssignment(row);
+      if(nm||price)bd.push({name:nm,price,type,people,includesMe});
+      if(type==='split'){const count=people.length+(includesMe?1:0);if(count>0){const each=price/count;people.forEach(p=>{totals[p]=(totals[p]||0)+each;});}}
+    });
+    if(Object.keys(totals).length){entries=Object.entries(totals).map(([name,owes])=>({name,owes}));breakdown=bd;}
   }
-  const m=mMap[i]||'eq',amt=fld[i]?.amount||0,rs=prs(i);let entries=[];
-  if(m==='eq'){const ns=rs.map(r=>r.querySelector('input[type="text"]').value.trim()).filter(Boolean);if(!ns.length){alert('Add at least one person.');return;}const meInc=document.getElementById(`meinc-${i}`)?.dataset.on==='1';const div=ns.length+(meInc?1:0);entries=ns.map(n=>({name:n,owes:amt/div}));}
-  else if(m==='pct'){entries=rs.map(r=>({name:r.querySelector('input[type="text"]').value.trim(),owes:(parseFloat(r.querySelector('.nb')?.value)||0)/100*amt})).filter(e=>e.name);}
-  else{entries=rs.map(r=>({name:r.querySelector('input[type="text"]').value.trim(),owes:parseFloat(r.querySelector('.nb')?.value)||0})).filter(e=>e.name);}
-  if(!entries.length){alert('Add at least one person.');return;}
-  const photo=sp[i]?.photo||null;
-  const pdfName=sp[i]?.pdfName||null,pdfAmt=sp[i]?.pdfAmt||null;
-  const paid=sp[i]?.paid||{};
-  const itemBreakdown=sp[i]?.itemBreakdown||null;
+  // fall back to equal split from people list
+  if(!entries.length){
+    const rs=prs(i);
+    const ns=rs.map(r=>r.querySelector('input[type="text"]').value.trim()).filter(Boolean);
+    if(!ns.length){alert('Add at least one person.');return;}
+    const meInc=document.getElementById(`meinc-${i}`)?.dataset.on==='1';
+    const div=ns.length+(meInc?1:0);
+    entries=ns.map(n=>({name:n,owes:amt/div}));
+  }
+  const photo=sp[i]?.photo||null,pdfName=sp[i]?.pdfName||null,pdfAmt=sp[i]?.pdfAmt||null,paid=sp[i]?.paid||{};
+  const parsedItems=sp[i]?.parsedItems||null;
   const histId=`${(fld[i]?.merchant||'exp').replace(/\s+/g,'-')}-${fld[i]?.date||''}-${Date.now()}`;
   const exp=fld[i];
-  sp[i]={entries,mode:m,photo,pdfName,pdfAmt,savedAt:new Date().toISOString(),paid,histId,itemBreakdown,merchant:exp?.merchant,date:exp?.date,amount:exp?.amount};
+  sp[i]={entries,mode:breakdown?'item':'eq',photo,pdfName,pdfAmt,savedAt:new Date().toISOString(),paid,histId,itemBreakdown:breakdown,parsedItems,merchant:exp?.merchant,date:exp?.date,amount:exp?.amount};
   pSp();sHist(i,entries,photo,histId);mDone(i,entries,true);upProg();upStats();rRecap();syncToCloud("history",gHist());syncToCloud("skipped",sx);syncToCloud("splits",sp);
 }
 
@@ -1039,23 +1031,29 @@ function editSplit(i){
   const c=document.getElementById(`ec-${i}`);if(!c)return;
   c.classList.remove('done','col','skp','venmo-pending');c.classList.add('cur');
   const est=document.getElementById(`est-${i}`);if(est)est.innerHTML='';
-  const m=s.mode||'eq';sMode(i,m);
+  // restore people list (name-only inputs)
   const pl=document.getElementById(`pl-${i}`);if(!pl)return;
   pl.innerHTML='';
   s.entries.forEach((e,n)=>{
     const d=document.createElement('div');d.className='pr';d.id=`pr-${i}-${n}`;
-    const amt=fld[i]?.amount||0;
-    if(m==='eq')d.innerHTML=`<input type="text" placeholder="Name" oninput="calc(${i})" value="${e.name.replace(/"/g,'&quot;')}"/><button class="rb" onclick="rP(${i},${n})">×</button>`;
-    else if(m==='pct'){const pct=amt?(e.owes/amt*100).toFixed(1):0;d.innerHTML=`<input type="text" placeholder="Name" oninput="calc(${i})" value="${e.name.replace(/"/g,'&quot;')}"/><input type="number" class="nb" value="${pct}" oninput="calc(${i})"/><span class="sym">%</span><button class="rb" onclick="rP(${i},${n})">×</button>`;}
-    else d.innerHTML=`<input type="text" placeholder="Name" oninput="calc(${i})" value="${e.name.replace(/"/g,'&quot;')}"/><input type="number" class="nb" value="${e.owes.toFixed(2)}" step="0.01" oninput="calc(${i})"/><button class="rb" onclick="rP(${i},${n})">×</button>`;
+    d.innerHTML=`<input type="text" placeholder="Name" oninput="calc(${i})" value="${e.name.replace(/"/g,'&quot;')}"/><button class="rb" onclick="rP(${i},${n})">×</button>`;
     pl.appendChild(d);
   });
   pMap[i]=s.entries.length;
   const fl=document.getElementById(`fl-${i}`);if(fl)fl.innerHTML='';
   document.getElementById(`rp-${i}`).style.display='none';
-  // restore parsed items panel if available
-  if(s.parsedItems?.length){const panel=document.getElementById(`ip-${i}`);if(panel){panel.style.display='block';renderItemRows(i,s.parsedItems);}}
-  calc(i);
+  // restore items panel: use breakdown (has chip assignments) or fall back to parsedItems
+  const panel=document.getElementById(`ip-${i}`);if(panel){
+    if(s.itemBreakdown?.length){
+      panel.style.display='block';
+      renderItemRows(i,s.itemBreakdown.map(b=>({name:b.name,price:b.price})),s.itemBreakdown);
+    }else if(s.parsedItems?.length){
+      panel.style.display='block';
+      renderItemRows(i,s.parsedItems);
+    }else{
+      panel.style.display='none';
+    }
+  }
   setTimeout(()=>c.scrollIntoView({behavior:'smooth',block:'center'}),80);
 }
 
@@ -1281,9 +1279,9 @@ function itemChipsHTML(i,people,activeVals){
     +people.map(p=>`<button class="ichip${(activeVals===null||activeVals?.has(p))?' active':''}" data-val="${p.replace(/"/g,'&quot;')}" onclick="toggleChip(this,${i})">${p}</button>`).join('');
 }
 
-function itemRowHTML(i,n,name='',price=0){
+function itemRowHTML(i,n,name='',price=0,activeVals){
   const people=getItemPeople(i);
-  return`<div class="item-row" id="irow-${i}-${n}"><div class="item-top"><input class="item-name-in" value="${name.replace(/"/g,'&quot;').replace(/</g,'&lt;')}" placeholder="Item name" oninput="updateItemSummary(${i})"/><input class="item-price-in" type="number" step="0.01" min="0" value="${(+price).toFixed(2)}" oninput="updateItemSummary(${i})"/><button class="item-del-btn" onclick="delItemRow(${i},${n})">✕</button></div><div class="item-chips">${itemChipsHTML(i,people,null)}</div></div>`;
+  return`<div class="item-row" id="irow-${i}-${n}"><div class="item-top"><input class="item-name-in" value="${name.replace(/"/g,'&quot;').replace(/</g,'&lt;')}" placeholder="Item name" oninput="updateItemSummary(${i})"/><input class="item-price-in" type="number" step="0.01" min="0" value="${(+price).toFixed(2)}" oninput="updateItemSummary(${i})"/><button class="item-del-btn" onclick="delItemRow(${i},${n})">✕</button></div><div class="item-chips">${itemChipsHTML(i,people,activeVals??null)}</div></div>`;
 }
 
 function toggleChip(btn,i){
@@ -1320,8 +1318,12 @@ function getItemAssignment(row){
   return{type:'split',people,includesMe};
 }
 
-function renderItemRows(i,items){
-  document.getElementById(`il-${i}`).innerHTML=items.map((item,n)=>itemRowHTML(i,n,item.name,item.price)).join('');
+function renderItemRows(i,items,breakdown){
+  document.getElementById(`il-${i}`).innerHTML=items.map((item,n)=>{
+    const bd=breakdown?.[n];
+    const activeVals=bd?new Set([...(bd.includesMe?['__me__']:[]),...bd.people]):null;
+    return itemRowHTML(i,n,item.name,item.price,activeVals);
+  }).join('');
   updateItemSummary(i);
 }
 
