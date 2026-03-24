@@ -678,6 +678,11 @@ async function parseStatement(file){
     if(file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf')){
       payload=await getPDFPayload(file);
     }else{
+      // HEIC/HEIF not supported by Claude API — prompt user to convert
+      if(file.type==='image/heic'||file.type==='image/heif'||/\.(heic|heif)$/i.test(file.name)){
+        dz.innerHTML=`<span class="di">⚠️</span><p><strong>${file.name}</strong><br/>HEIC photos aren't supported. On iPhone go to <strong>Settings → Camera → Formats → Most Compatible</strong> to shoot in JPEG, or AirDrop as JPEG.<br/><button onclick="document.getElementById('fi').click()" style="margin-top:6px;font-size:0.7rem;color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">Upload a different file →</button></p>`;
+        return;
+      }
       // detect actual mime type from file, fall back to jpeg
       const actualMime=file.type&&file.type.startsWith('image/')?file.type:'image/jpeg';
       const dataUrl=await new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsDataURL(file);});
@@ -904,6 +909,12 @@ function sRes(i,entries,warn){const b=document.getElementById(`rp-${i}`);if(!b)r
 
 function oPhoto(i,input){
   const file=input.files[0];if(!file)return;
+  if(file.type==='image/heic'||file.type==='image/heif'||/\.(heic|heif)$/i.test(file.name)){
+    const il=document.getElementById(`il-${i}`);const panel=document.getElementById(`ip-${i}`);
+    if(panel)panel.style.display='block';
+    if(il)il.innerHTML=`<div style="font-size:0.7rem;color:var(--red)">HEIC not supported — on iPhone go to Settings → Camera → Formats → Most Compatible, then reshoot or AirDrop as JPEG.</div>`;
+    return;
+  }
   if(file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf')){
     if(!sp[i])sp[i]={};sp[i].pdfName=file.name;delete sp[i].photo;pSp();
     sPDFAttach(i,file.name,null);
