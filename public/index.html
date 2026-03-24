@@ -369,7 +369,6 @@ input.pf{display:none;}
 .item-chips{display:flex;flex-wrap:wrap;gap:4px;}
 .ichip{font-size:0.6rem;font-weight:600;padding:3px 9px;border-radius:99px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;font-family:inherit;transition:all 0.12s;}
 .ichip.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
-.ichip.mine-chip.active{background:var(--green-soft);border-color:#86efac;color:var(--green);}
 .ichip-hint{font-size:0.58rem;color:var(--muted);font-style:italic;}
 .all-chip{background:var(--bg2);border-color:var(--border2);color:var(--ink2);}
 .items-summary{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px;}
@@ -814,19 +813,18 @@ function bCard(e,i){
         <div class="slbl">Who split this with you?</div>
         <div class="mds">
           <button class="mb on" id="me-${i}" onclick="sMode(${i},'eq')">⚖ Equal</button>
-          <button class="mb" id="mp-${i}" onclick="sMode(${i},'pct')">% Split</button>
           <button class="mb" id="mi-${i}" onclick="sMode(${i},'item')">🧾 By Item</button>
         </div>
+        <div id="mode-hint-${i}" style="font-size:0.62rem;color:var(--muted);margin:4px 0 8px;line-height:1.5">Split the total evenly — enter names below</div>
         <div id="mb-${i}">${eqB(i)}</div>
         <div class="rp" id="rp-${i}"></div>
       </div>
     </div>
     <div class="items-panel" id="ip-${i}" style="display:none">
-      <div class="slbl">Receipt items — assign each to a person</div>
+      <div class="slbl">Receipt items — tap chips to assign each item</div>
       <div id="il-${i}"></div>
       <button class="ab" style="margin-top:6px" onclick="addItemRow(${i})">+ Add item</button>
       <div class="items-summary" id="isum-${i}"></div>
-      <button class="apply-split-btn" onclick="applyAndSave(${i})">Save Split from Items →</button>
     </div>
     <div class="ecfoot">
       <div class="fl" id="fl-${i}"></div>
@@ -883,9 +881,11 @@ function sMode(i,m){mMap[i]=m;['eq','pct','item'].forEach(x=>document.getElement
 // fix mode button toggle
 function sMode(i,m){
   mMap[i]=m;
-  [['me',m==='eq'],['mp',m==='pct'],['mi',m==='item']].forEach(([id,on])=>document.getElementById(`${id}-${i}`)?.classList.toggle('on',on));
+  [['me',m==='eq'],['mi',m==='item']].forEach(([id,on])=>document.getElementById(`${id}-${i}`)?.classList.toggle('on',on));
   document.getElementById(`mb-${i}`).innerHTML=m==='eq'?eqB(i):m==='pct'?pctB(i):itmB(i);
   document.getElementById(`rp-${i}`).style.display='none';
+  const hints={eq:'Split the total evenly — enter names below',item:'Receipt items are assigned below — tap each chip to split',pct:'Assign a custom dollar amount to each person'};
+  const hint=document.getElementById(`mode-hint-${i}`);if(hint)hint.textContent=hints[m]||'';
 }
 
 function aP(i){const m=mMap[i]||'eq';pMap[i]=pMap[i]||2;const n=pMap[i]++;const pl=document.getElementById(`pl-${i}`),d=document.createElement('div');d.className='pr';d.id=`pr-${i}-${n}`;if(m==='eq')d.innerHTML=`<input type="text" placeholder="Name" oninput="calc(${i})"/><button class="rb" onclick="rP(${i},${n})">×</button>`;else if(m==='pct')d.innerHTML=`<input type="text" placeholder="Name" oninput="calc(${i})"/><input type="number" class="nb" placeholder="0" oninput="calc(${i})"/><span class="sym">%</span><button class="rb" onclick="rP(${i},${n})">×</button>`;else d.innerHTML=`<input type="text" placeholder="Name" oninput="calc(${i})"/><input type="number" class="nb" placeholder="0.00" step="0.01" oninput="calc(${i})"/><button class="rb" onclick="rP(${i},${n})">×</button>`;pl.appendChild(d);}
@@ -988,6 +988,14 @@ function sPDFAttach(i,name,amt){
 }
 
 function savS(i){
+  // if items panel is open and has assignments, auto-apply before saving
+  const panel=document.getElementById(`ip-${i}`);
+  if(panel?.style.display!=='none'){
+    const il=document.getElementById(`il-${i}`);
+    const irows=il?.querySelectorAll('.item-row')||[];
+    const hasAssignment=Array.from(irows).some(row=>{const a=getItemAssignment(row);return a.type==='split'&&(a.people.length||a.includesMe);});
+    if(hasAssignment){applyItemSplit(i);}
+  }
   const m=mMap[i]||'eq',amt=fld[i]?.amount||0,rs=prs(i);let entries=[];
   if(m==='eq'){const ns=rs.map(r=>r.querySelector('input[type="text"]').value.trim()).filter(Boolean);if(!ns.length){alert('Add at least one person.');return;}const meInc=document.getElementById(`meinc-${i}`)?.dataset.on==='1';const div=ns.length+(meInc?1:0);entries=ns.map(n=>({name:n,owes:amt/div}));}
   else if(m==='pct'){entries=rs.map(r=>({name:r.querySelector('input[type="text"]').value.trim(),owes:(parseFloat(r.querySelector('.nb')?.value)||0)/100*amt})).filter(e=>e.name);}
@@ -1045,6 +1053,8 @@ function editSplit(i){
   pMap[i]=s.entries.length;
   const fl=document.getElementById(`fl-${i}`);if(fl)fl.innerHTML='';
   document.getElementById(`rp-${i}`).style.display='none';
+  // restore parsed items panel if available
+  if(s.parsedItems?.length){const panel=document.getElementById(`ip-${i}`);if(panel){panel.style.display='block';renderItemRows(i,s.parsedItems);}}
   calc(i);
   setTimeout(()=>c.scrollIntoView({behavior:'smooth',block:'center'}),80);
 }
@@ -1263,38 +1273,28 @@ function getItemPeople(i){
   return Array.from(pl.querySelectorAll('input[type="text"]')).map(inp=>inp.value.trim()).filter(Boolean);
 }
 
-function itemChipsHTML(i,people,activeVals,mineActive){
+function itemChipsHTML(i,people,activeVals){
   if(!people.length)return`<span class="ichip-hint">Add names in the split form above to assign</span>`;
   const meActive=activeVals===null||activeVals?.has('__me__');
-  return`<button class="ichip mine-chip${mineActive?' active':''}" data-val="mine" onclick="toggleChip(this,${i})">Mine only</button>`
-    +`<button class="ichip all-chip" onclick="setAllChips(this,${i})">All</button>`
+  return`<button class="ichip all-chip" onclick="setAllChips(this,${i})">All</button>`
     +`<button class="ichip me-chip${meActive?' active':''}" data-val="__me__" onclick="toggleChip(this,${i})">Me</button>`
     +people.map(p=>`<button class="ichip${(activeVals===null||activeVals?.has(p))?' active':''}" data-val="${p.replace(/"/g,'&quot;')}" onclick="toggleChip(this,${i})">${p}</button>`).join('');
 }
 
 function itemRowHTML(i,n,name='',price=0){
   const people=getItemPeople(i);
-  return`<div class="item-row" id="irow-${i}-${n}"><div class="item-top"><input class="item-name-in" value="${name.replace(/"/g,'&quot;').replace(/</g,'&lt;')}" placeholder="Item name" oninput="updateItemSummary(${i})"/><input class="item-price-in" type="number" step="0.01" min="0" value="${(+price).toFixed(2)}" oninput="updateItemSummary(${i})"/><button class="item-del-btn" onclick="delItemRow(${i},${n})">✕</button></div><div class="item-chips">${itemChipsHTML(i,people,null,false)}</div></div>`;
+  return`<div class="item-row" id="irow-${i}-${n}"><div class="item-top"><input class="item-name-in" value="${name.replace(/"/g,'&quot;').replace(/</g,'&lt;')}" placeholder="Item name" oninput="updateItemSummary(${i})"/><input class="item-price-in" type="number" step="0.01" min="0" value="${(+price).toFixed(2)}" oninput="updateItemSummary(${i})"/><button class="item-del-btn" onclick="delItemRow(${i},${n})">✕</button></div><div class="item-chips">${itemChipsHTML(i,people,null)}</div></div>`;
 }
 
 function toggleChip(btn,i){
-  const row=btn.closest('.item-row');
-  if(btn.dataset.val==='mine'){
-    const wasActive=btn.classList.contains('active');
-    row.querySelectorAll('.ichip').forEach(c=>c.classList.remove('active'));
-    if(!wasActive)btn.classList.add('active');
-  }else{
-    row.querySelector('.mine-chip')?.classList.remove('active');
-    btn.classList.toggle('active');
-  }
+  btn.classList.toggle('active');
   updateItemSummary(i);
 }
 
 function setAllChips(btn,i){
   const row=btn.closest('.item-row');
-  const people=row.querySelectorAll('.ichip:not(.mine-chip):not(.all-chip)');
+  const people=row.querySelectorAll('.ichip:not(.all-chip)');
   const allActive=Array.from(people).every(c=>c.classList.contains('active'));
-  row.querySelector('.mine-chip')?.classList.remove('active');
   people.forEach(c=>c.classList.toggle('active',!allActive));
   updateItemSummary(i);
 }
@@ -1305,21 +1305,19 @@ function refreshItemChips(i){
   const people=getItemPeople(i);
   il.querySelectorAll('.item-chips').forEach(chips=>{
     const row=chips.closest('.item-row');
-    const mineActive=row.querySelector('.mine-chip')?.classList.contains('active')||false;
-    const activeVals=new Set(Array.from(row.querySelectorAll('.ichip.active:not(.mine-chip):not(.all-chip)')).map(c=>c.dataset.val));
-    chips.innerHTML=itemChipsHTML(i,people,activeVals.size?activeVals:null,mineActive);
-
+    const activeVals=new Set(Array.from(row.querySelectorAll('.ichip.active:not(.all-chip)')).map(c=>c.dataset.val));
+    chips.innerHTML=itemChipsHTML(i,people,activeVals.size?activeVals:null);
   });
   updateItemSummary(i);
 }
 
 function getItemAssignment(row){
-  const mine=row.querySelector('.mine-chip');
-  if(mine?.classList.contains('active'))return{type:'mine',people:[],includesMe:false};
-  const active=Array.from(row.querySelectorAll('.ichip:not(.mine-chip):not(.all-chip).active')).map(c=>c.dataset.val);
+  const active=Array.from(row.querySelectorAll('.ichip:not(.all-chip).active')).map(c=>c.dataset.val);
   const includesMe=active.includes('__me__');
   const people=active.filter(v=>v!=='__me__');
-  return{type:(people.length||includesMe)?'split':'unassigned',people,includesMe};
+  // no chips selected = mine (unassigned, kept by me)
+  if(!people.length&&!includesMe)return{type:'mine',people:[],includesMe:false};
+  return{type:'split',people,includesMe};
 }
 
 function renderItemRows(i,items){
@@ -1356,7 +1354,7 @@ function updateItemSummary(i){
   let chips='';
   if(mineTotal>0)chips+=`<span class="isumchip me">Mine $${mineTotal.toFixed(2)}</span>`;
   Object.entries(totals).forEach(([name,amt])=>{chips+=`<span class="isumchip owed">${name} owes $${amt.toFixed(2)}</span>`;});
-  if(!chips)chips=`<span class="ichip-hint">Tap person chips on each item to assign</span>`;
+  if(!chips)chips=`<span class="ichip-hint">Tap person chips to assign items — unassigned items are yours</span>`;
   document.getElementById(`isum-${i}`).innerHTML=html+`<div class="items-summary">${chips}</div>`;
 }
 
@@ -1388,7 +1386,6 @@ function applyItemSplit(i){
   document.getElementById(`ip-${i}`).style.display='none';
 }
 
-function applyAndSave(i){applyItemSplit(i);setTimeout(()=>savS(i),50);}
 
 // BREAKDOWN + SHARE
 function toggleBreakdownPanel(i){
