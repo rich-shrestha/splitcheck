@@ -1064,7 +1064,13 @@ function upProg(){
 }
 function upStats(){
   const tot=fld.reduce((s,e)=>s+e.amount,0);let req=0,you=0;
-  Object.entries(sp).forEach(([i,s])=>{if(!s.entries)return;const a=fld[+i]?.amount||0;const sr=s.entries.reduce((s,e)=>s+e.owes,0);req+=sr;you+=(a-sr);});
+  Object.entries(sp).forEach(([i,s])=>{
+    if(!s.entries)return;
+    const a=fld[+i]?.amount;
+    if(!a)return;// skip stale splits from a previous session's cards
+    const sr=s.entries.reduce((ss,e)=>ss+e.owes,0);
+    req+=sr;you+=(a-sr);
+  });
   document.getElementById('s-tot').textContent='$'+tot.toFixed(2);
   document.getElementById('s-req').textContent=req>0?'$'+req.toFixed(2):'$0';
   document.getElementById('s-you').textContent=you>0?'$'+you.toFixed(2):'$0';
@@ -1099,7 +1105,9 @@ function rtt(){
   const body=indexed.slice(0,300).map(({r,i})=>{
     const a=ga(r),c=gc(r);const isF=a&&a>t&&cats.some(x=>c.includes(x));const isM=r._manuallyFlagged;
     const edited=r._merchant||r._category!=null;
-    return`<div class="tr ${(isF||isM)?'fr':''}"><div><div class="tm">${gm(r)}${edited?'<em class="edited-mark" title="Edited">✎</em>':''}</div><div class="td">${gd(r)}${r._source&&sources.length>1?`<span class="src-tag">${r._source.replace(/\.csv$/i,'')}</span>`:''}</div></div><div class="tc">${c||'—'}</div><div class="ta ${(isF||isM)?'fa':''}" style="text-align:right">${a?'$'+a.toFixed(2):'—'}${(isF||isM)?` <span class="fb2">⚑${isM&&!isF?' manual':' flagged'}</span>`:''}</div><div style="display:flex;gap:1px"><button class="fbtn${isM?' on':''}" onclick="toggleFlag(${i})" title="${isM?'Remove from split':'Add to split'}">⚑</button><button class="ebtn" onclick="showEditTx(${i})">✎</button></div></div>`;
+    const fldIdx=(isF||isM)?fld.findIndex(f=>f.merchant===gm(r)&&f.date===gd(r)&&f.amount===a):-1;
+    const rowClick=(isF||isM)&&fldIdx>=0?`onclick="gp('split',document.getElementById('t-split'));setTimeout(()=>{const c=document.getElementById('ec-${fldIdx}');if(c)c.scrollIntoView({behavior:'smooth',block:'center'});},80)"style="cursor:pointer"`:'' ;
+    return`<div class="tr ${(isF||isM)?'fr':''}" ${rowClick}><div><div class="tm">${gm(r)}${edited?'<em class="edited-mark" title="Edited">✎</em>':''}</div><div class="td">${gd(r)}${r._source&&sources.length>1?`<span class="src-tag">${r._source.replace(/\.csv$/i,'')}</span>`:''}</div></div><div class="tc">${c||'—'}</div><div class="ta ${(isF||isM)?'fa':''}" style="text-align:right">${a?'$'+a.toFixed(2):'—'}${(isF||isM)?` <span class="fb2">⚑${isM&&!isF?' manual':' flagged'}</span>`:''}</div><div style="display:flex;gap:1px" onclick="event.stopPropagation()"><button class="fbtn${isM?' on':''}" onclick="toggleFlag(${i})" title="${isM?'Remove from split':'Add to split'}">⚑</button><button class="ebtn" onclick="showEditTx(${i})">✎</button></div></div>`;
   }).join('');
   el.innerHTML=hdr+body+`<div class="tcbar">Showing ${Math.min(indexed.length,300)} of ${indexed.length} transactions</div>`;
 }
