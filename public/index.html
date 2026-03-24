@@ -643,7 +643,8 @@ dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');lf
 document.getElementById('fi').addEventListener('change',e=>lf([...e.target.files]));
 
 function lf(files){
-  rows=[];// fresh start — each new upload replaces previous rows
+  rows=[];sp={};sx={};// fresh start — clear everything for new upload
+  pSp();try{localStorage.setItem(XK,JSON.stringify(sx));}catch(e){}
   const csvs=files.filter(f=>f.name.toLowerCase().endsWith('.csv'));
   const imgs=files.filter(f=>!f.name.toLowerCase().endsWith('.csv'));
   if(csvs.length){
@@ -1056,7 +1057,7 @@ function adv(fi){
 }
 
 function upProg(){
-  const tot=fld.length,done=Object.keys(sp).length+Object.keys(sx).length;
+  const tot=fld.length,done=fld.filter((e,i)=>sp[i]?.entries||sx[fKey(i)]).length;
   const pct=tot?Math.round((done/tot)*100):0;
   document.getElementById('pgf').style.width=pct+'%';
   document.getElementById('pgc').textContent=`${done} of ${tot} done`;
@@ -1213,7 +1214,7 @@ function vb(name,amt,exp){
 }
 
 // HELPERS
-function dRange(d){try{const dt=new Date(d+'T12:00:00'),m=new Date(dt),p=new Date(dt);m.setDate(dt.getDate()-3);p.setDate(dt.getDate()+3);const f=x=>x.toLocaleDateString('en-US',{month:'short',day:'numeric'});return`${f(m)}–${f(p)}`;}catch{return'±3 days';}}
+function dRange(d){try{let iso=d||'';if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(iso)){const[mo,dy,yr]=iso.split('/');iso=`${yr}-${mo.padStart(2,'0')}-${dy.padStart(2,'0')}`;}const dt=new Date(iso+'T12:00:00');if(isNaN(dt))return'±3 days';const m=new Date(dt),p=new Date(dt);m.setDate(dt.getDate()-3);p.setDate(dt.getDate()+3);const f=x=>x.toLocaleDateString('en-US',{month:'short',day:'numeric'});return`${f(m)}–${f(p)}`;}catch{return'±3 days';}}
 function tSMS(){smsOn=!smsOn;document.getElementById('pill').classList.toggle('on',smsOn);document.getElementById('smsg').classList.toggle('show',smsOn);}
 function gp(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));document.getElementById(`page-${name}`).classList.add('active');btn?.classList.add('active');if(name==='history')rHist();if(name==='recap')rRecap();if(name==='transactions')rtt();}
 
