@@ -435,10 +435,10 @@ input.pf{display:none;}
 <div class="page" id="page-upload">
   <div class="hero">
     <h2>Split<em>Check</em></h2>
-    <p>Upload your Origin CSV · flag expenses · split & request via Venmo</p>
+    <p>Upload a statement, receipt photo, or CSV · flag expenses · split & request via Venmo</p>
   </div>
   <div class="card">
-    <div class="clabel">Origin CSV Export</div>
+    <div class="clabel">Upload Statement</div>
     <div id="dz" onclick="document.getElementById('fi').click()">
       <span class="di">📂</span>
       <p>Receipt photo &nbsp;·&nbsp; CSV &nbsp;·&nbsp; PDF<br/>or <span class="br">browse to select</span></p>
@@ -457,13 +457,12 @@ input.pf{display:none;}
       <div class="f"><label>Your number</label><input type="text" id="tw-to" placeholder="+1xxxxxxxxxx"/></div>
       <p class="sn">Free at <a href="https://twilio.com" target="_blank">twilio.com</a> · verify your number under Verified Caller IDs</p>
     </div>
-    <button class="pbtn" id="scn-btn" disabled onclick="scan()">Drop a CSV to begin</button>
+    <button class="pbtn" id="scn-btn" disabled onclick="scan()">Upload a file to begin</button>
     <div id="ss"></div>
-    <p style="font-size:.62rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:11px;line-height:1.6">In Origin: <strong style="color:var(--ink2)">Spending → Transactions → ⋯ → Export CSV</strong></p>
-  </div>
-  <div class="card" id="sess-card" style="display:none">
-    <div class="clabel">Recent Uploads</div>
-    <div class="sess-list" id="sess-list"></div>
+    <div id="sess-card" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:12px;">
+      <div class="clabel" style="margin-bottom:8px;">Recent Uploads</div>
+      <div class="sess-list" id="sess-list"></div>
+    </div>
   </div>
 </div>
 
