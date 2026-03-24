@@ -91,8 +91,6 @@ nav{position:sticky;top:0;z-index:200;background:rgba(255,255,255,0.94);backdrop
 .sn{font-size:0.62rem;color:var(--muted);font-family:'JetBrains Mono',monospace;line-height:1.6;grid-column:1/-1;}
 .sn a{color:var(--accent);}
 
-#pb{background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:9px 12px;font-size:0.71rem;font-family:'JetBrains Mono',monospace;color:var(--muted);margin-bottom:13px;display:none;line-height:1.7;}
-#pb .fl{color:var(--red);font-weight:600;}
 
 .pbtn{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.84rem;font-weight:700;letter-spacing:-0.01em;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;justify-content:center;gap:8px;}
 .pbtn:hover{background:#2f4ecb;}
@@ -444,7 +442,6 @@ input.pf{display:none;}
       <p>Receipt photo &nbsp;·&nbsp; CSV &nbsp;·&nbsp; PDF<br/>or <span class="br">browse to select</span></p>
     </div>
     <input type="file" id="fi" accept=".csv,image/*,.pdf" multiple/>
-    <div id="pb"></div>
     <div class="frow">
       <div class="f"><label>Flag over ($)</label><input type="number" id="thr" value="40" min="1" oninput="osc()"/></div>
       <div class="f"><label>Categories</label><input type="text" id="cats" value="restaurant,dining,grocery,groceries,food & drink,food,coffee,bar" oninput="osc()"/></div>
@@ -664,7 +661,7 @@ function lf(files){
         const dateStr=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
         dz.classList.add('loaded');
         dz.innerHTML=`<span class="di">✅</span><p><strong>${allSources.join(' + ')}</strong><br/>${rows.length} transactions · uploaded ${dateStr}</p>`;
-        spv();document.getElementById('scn-btn').disabled=false;document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;saveSess(allSources,rows);
+        document.getElementById('scn-btn').disabled=false;document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;saveSess(allSources,rows);
         showTabs();rAll();gp('split',document.getElementById('t-split'));
       }
     };r.readAsText(file);});
@@ -701,7 +698,7 @@ async function parseStatement(file){
     const dateStr=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
     dz.classList.add('loaded');
     dz.innerHTML=`<span class="di">✅</span><p><strong>${allSources.join(' + ')}</strong><br/>${rows.length} transactions · uploaded ${dateStr}</p>`;
-    spv();document.getElementById('scn-btn').disabled=false;document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;saveSess(allSources,rows);
+    document.getElementById('scn-btn').disabled=false;document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;saveSess(allSources,rows);
     showTabs();rAll();gp('split',document.getElementById('t-split'));
   }catch(e){
     dz.innerHTML=`<span class="di">⚠️</span><p>Error reading ${file.name}: ${e.message}</p>`;
@@ -727,13 +724,7 @@ function toggleFlag(idx){
   try{localStorage.setItem(TK,JSON.stringify(rows));}catch(e){}
   rcf();rAll();rtt();
 }
-function osc(){if(rows.length){rcf();spv();}}
-function spv(){
-  const b=document.getElementById('pb');b.style.display='block';
-  if(!fld.length){b.innerHTML='✓ No charges over threshold found.';return;}
-  const tot=fld.reduce((s,e)=>s+e.amount,0);
-  b.innerHTML=`<span class="fl">⚑ ${fld.length} flagged · $${tot.toFixed(2)}</span>\n`+fld.slice(0,3).map(e=>`${e.merchant}  $${e.amount.toFixed(2)}`).join('\n')+(fld.length>3?`\n+${fld.length-3} more…`:'');
-}
+function osc(){if(rows.length){rcf();}}
 
 async function scan(){
   if(!fld.length){showSS('ok','✓ No flagged expenses found.');return;}
