@@ -487,6 +487,7 @@ input.pf{display:none;}
 <div class="page" id="page-split">
   <div class="pgwrap">
     <div class="pghead"><span class="pgtitle">Flagged Expenses</span><span class="pgcount" id="pgc">0 of 0</span></div>
+    <div id="sess-date-bar" style="display:none;font-size:0.6rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:6px;"></div>
     <div class="pgtrack"><div class="pgfill" id="pgf" style="width:0%"></div></div>
     <button class="va-btn" onclick="gp('transactions',document.getElementById('t-txs'))">View all transactions →</button>
   </div>
@@ -686,6 +687,7 @@ dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');lf
 document.getElementById('fi').addEventListener('change',e=>lf([...e.target.files]));
 
 function lf(files){
+  rows=[];// fresh start — each new upload replaces previous rows
   const csvs=files.filter(f=>f.name.toLowerCase().endsWith('.csv'));
   const imgs=files.filter(f=>!f.name.toLowerCase().endsWith('.csv'));
   if(csvs.length){
@@ -700,9 +702,11 @@ function lf(files){
         try{localStorage.setItem(TK,JSON.stringify(rows));}catch(ee){}
         rcf();
         const allSources=[...new Set(rows.map(r=>r._source).filter(Boolean))];
+        const dateStr=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
         dz.classList.add('loaded');
-        dz.innerHTML=`<span class="di">✅</span><p><strong>${allSources.join(' + ')}</strong><br/>${rows.length} transactions loaded</p>`;
+        dz.innerHTML=`<span class="di">✅</span><p><strong>${allSources.join(' + ')}</strong><br/>${rows.length} transactions · uploaded ${dateStr}</p>`;
         spv();document.getElementById('scn-btn').disabled=false;document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;saveSess(allSources,rows);
+        showTabs();rAll();gp('split',document.getElementById('t-split'));
       }
     };r.readAsText(file);});
   }
@@ -735,9 +739,11 @@ async function parseStatement(file){
     try{localStorage.setItem(TK,JSON.stringify(rows));}catch(e){}
     rcf();
     const allSources=[...new Set(rows.map(r=>r._source).filter(Boolean))];
+    const dateStr=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
     dz.classList.add('loaded');
-    dz.innerHTML=`<span class="di">✅</span><p><strong>${allSources.join(' + ')}</strong><br/>${rows.length} transactions loaded (${unique.length} new from ${file.name})</p>`;
+    dz.innerHTML=`<span class="di">✅</span><p><strong>${allSources.join(' + ')}</strong><br/>${rows.length} transactions · uploaded ${dateStr}</p>`;
     spv();document.getElementById('scn-btn').disabled=false;document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;saveSess(allSources,rows);
+    showTabs();rAll();gp('split',document.getElementById('t-split'));
   }catch(e){
     dz.innerHTML=`<span class="di">⚠️</span><p>Error reading ${file.name}: ${e.message}</p>`;
   }
@@ -1445,6 +1451,7 @@ function saveSess(names,newRows){
   try{localStorage.setItem(SESS_KEY,JSON.stringify(sessions));}catch(e){}
   syncToCloud('sessions',sessions);
   activeSessId=s.id;rSessions();
+  showSessDateBar(label,s.uploadedAt);
 }
 function restoreSess(id){
   const sess=getSessions().find(s=>s.id===id);if(!sess)return;
@@ -1453,12 +1460,20 @@ function restoreSess(id){
   if(sess.categories)document.getElementById('cats').value=sess.categories;
   try{localStorage.setItem(TK,JSON.stringify(rows));}catch(e){}
   rcf();spv();
+  const dateStr=new Date(sess.uploadedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
   dz.classList.add('loaded');
-  dz.innerHTML=`<span class="di">✅</span><p><strong>${sess.name}</strong><br/>${rows.length} transactions restored</p>`;
+  dz.innerHTML=`<span class="di">✅</span><p><strong>${sess.name}</strong><br/>${rows.length} transactions · uploaded ${dateStr}</p>`;
   document.getElementById('scn-btn').disabled=false;
   document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;
   showTabs();rAll();gp('split',document.getElementById('t-split'));
   activeSessId=id;rSessions();
+  showSessDateBar(sess.name,sess.uploadedAt);
+}
+function showSessDateBar(name,isoDate){
+  const bar=document.getElementById('sess-date-bar');if(!bar)return;
+  const dateStr=new Date(isoDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  bar.textContent=`Source: ${name} · uploaded ${dateStr}`;
+  bar.style.display='block';
 }
 function deleteSess(id,e){
   e.stopPropagation();
