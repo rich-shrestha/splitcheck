@@ -1429,7 +1429,7 @@ function restoreSess(id){
   if(sess.threshold)document.getElementById('thr').value=sess.threshold;
   if(sess.categories)document.getElementById('cats').value=sess.categories;
   try{localStorage.setItem(TK,JSON.stringify(rows));}catch(e){}
-  rcf();spv();
+  rcf();
   const dateStr=new Date(sess.uploadedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
   dz.classList.add('loaded');
   dz.innerHTML=`<span class="di">✅</span><p><strong>${sess.name}</strong><br/>${rows.length} transactions · uploaded ${dateStr}</p>`;
