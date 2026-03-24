@@ -711,6 +711,19 @@ async function parseStatement(file){
     dz.innerHTML=`<span class="di">✅</span><p><strong>${allSources.join(' + ')}</strong><br/>${rows.length} transactions found · <strong style="color:var(--red)">${fld.length} flagged</strong> · ${dateStr}</p>`;
     document.getElementById('scn-btn').disabled=false;document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;saveSess(allSources,rows);
     showTabs();rAll();gp('split',document.getElementById('t-split'));
+    // If the image looks like a single receipt (≤3 transactions), auto-attach photo + parse items
+    if(unique.length<=3&&payload.image){
+      const dataUrl='data:'+(payload.mimeType||'image/jpeg')+';base64,'+payload.image;
+      fld.forEach((e,cardIdx)=>{
+        const matched=unique.some(u=>gm(u).toLowerCase()===e.merchant.toLowerCase());
+        if(!matched)return;
+        sPhoto(cardIdx,dataUrl);
+        if(!sp[cardIdx])sp[cardIdx]={};
+        sp[cardIdx].photo=dataUrl;
+        pSp();
+        fetchParsedItems(cardIdx,{image:payload.image,mimeType:payload.mimeType||'image/jpeg',amount:e.amount});
+      });
+    }
   }catch(e){
     dz.innerHTML=`<span class="di">⚠️</span><p><strong>${file.name}</strong><br/>${e.message}<br/><button onclick="document.getElementById('fi').click()" style="margin-top:6px;font-size:0.7rem;color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">Try again →</button></p>`;
   }
