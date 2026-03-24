@@ -660,7 +660,7 @@ function lf(files){
         const allSources=[...new Set(rows.map(r=>r._source).filter(Boolean))];
         const dateStr=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
         dz.classList.add('loaded');
-        dz.innerHTML=`<span class="di">✅</span><p><strong>${allSources.join(' + ')}</strong><br/>${rows.length} transactions · uploaded ${dateStr}</p>`;
+        dz.innerHTML=`<span class="di">✅</span><p><strong>${allSources.join(' + ')}</strong><br/>${rows.length} transactions found · <strong style="color:var(--red)">${fld.length} flagged</strong> · ${dateStr}</p>`;
         document.getElementById('scn-btn').disabled=false;document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;saveSess(allSources,rows);
         showTabs();rAll();gp('split',document.getElementById('t-split'));
       }
@@ -677,14 +677,24 @@ async function parseStatement(file){
     if(file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf')){
       payload=await getPDFPayload(file);
     }else{
+      // detect actual mime type from file, fall back to jpeg
+      const actualMime=file.type&&file.type.startsWith('image/')?file.type:'image/jpeg';
       const dataUrl=await new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsDataURL(file);});
+      // resizeImage always outputs JPEG via canvas; only fall back if canvas fails
       const base64=await resizeImage(dataUrl,2400);
-      payload={image:base64,mimeType:'image/jpeg'};
+      // if canvas succeeded, output is jpeg; if fell back to original, use actual type
+      const isResized=!dataUrl.split(',')[1].startsWith(base64.slice(0,20));
+      payload={image:base64,mimeType:isResized?'image/jpeg':actualMime};
     }
     const res=await fetch('/api/parse-statement',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!res.ok){
+      const errText=await res.text().catch(()=>'');
+      dz.innerHTML=`<span class="di">⚠️</span><p><strong>${file.name}</strong><br/>Upload failed (${res.status}) — try again or use CSV export<br/><button onclick="document.getElementById('fi').click()" style="margin-top:6px;font-size:0.7rem;color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">Try again →</button></p>`;
+      return;
+    }
     const data=await res.json();
     if(!data.transactions?.length){
-      dz.innerHTML=`<span class="di">⚠️</span><p><strong>${file.name}</strong><br/>No transactions found — try a clearer image or use CSV export</p>`;
+      dz.innerHTML=`<span class="di">⚠️</span><p><strong>${file.name}</strong><br/>No transactions found — try a clearer image or use CSV export<br/><button onclick="document.getElementById('fi').click()" style="margin-top:6px;font-size:0.7rem;color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">Try again →</button></p>`;
       return;
     }
     const txKey=r=>`${gd(r)}|${ga(r)}|${gm(r).toLowerCase()}`;
@@ -697,11 +707,11 @@ async function parseStatement(file){
     const allSources=[...new Set(rows.map(r=>r._source).filter(Boolean))];
     const dateStr=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
     dz.classList.add('loaded');
-    dz.innerHTML=`<span class="di">✅</span><p><strong>${allSources.join(' + ')}</strong><br/>${rows.length} transactions · uploaded ${dateStr}</p>`;
+    dz.innerHTML=`<span class="di">✅</span><p><strong>${allSources.join(' + ')}</strong><br/>${rows.length} transactions found · <strong style="color:var(--red)">${fld.length} flagged</strong> · ${dateStr}</p>`;
     document.getElementById('scn-btn').disabled=false;document.getElementById('scn-btn').textContent=`Review ${fld.length} flagged expense${fld.length!==1?'s':''} →`;saveSess(allSources,rows);
     showTabs();rAll();gp('split',document.getElementById('t-split'));
   }catch(e){
-    dz.innerHTML=`<span class="di">⚠️</span><p>Error reading ${file.name}: ${e.message}</p>`;
+    dz.innerHTML=`<span class="di">⚠️</span><p><strong>${file.name}</strong><br/>${e.message}<br/><button onclick="document.getElementById('fi').click()" style="margin-top:6px;font-size:0.7rem;color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">Try again →</button></p>`;
   }
 }
 
@@ -895,8 +905,10 @@ function oPhoto(i,input){
     const r=new FileReader();r.onload=e=>{
       sPhoto(i,e.target.result);
       if(!sp[i])sp[i]={};sp[i].photo=e.target.result;delete sp[i].pdfName;pSp();
+      const actualMime=file.type&&file.type.startsWith('image/')?file.type:'image/jpeg';
       resizeImage(e.target.result,2400).then(base64=>{
-        fetchParsedItems(i,{image:base64,mimeType:'image/jpeg',amount:fld[i]?.amount});
+        const isResized=!e.target.result.split(',')[1].startsWith(base64.slice(0,20));
+        fetchParsedItems(i,{image:base64,mimeType:isResized?'image/jpeg':actualMime,amount:fld[i]?.amount});
       });
     };r.readAsDataURL(file);
   }
