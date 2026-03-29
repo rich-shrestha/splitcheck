@@ -529,7 +529,7 @@ async function checkAuth(){
     currentUser=user;
     renderUserPill(user);
     await loadCloudData();
-  }catch(e){loadLocal();}
+  }catch(e){showAuthPage();}
 }
 
 function showAuthPage(){
@@ -1248,7 +1248,7 @@ function vb(name,amt,exp){
 // HELPERS
 function dRange(d){try{let iso=d||'';if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(iso)){const[mo,dy,yr]=iso.split('/');iso=`${yr}-${mo.padStart(2,'0')}-${dy.padStart(2,'0')}`;}const dt=new Date(iso+'T12:00:00');if(isNaN(dt))return'±3 days';const m=new Date(dt),p=new Date(dt);m.setDate(dt.getDate()-3);p.setDate(dt.getDate()+3);const f=x=>x.toLocaleDateString('en-US',{month:'short',day:'numeric'});return`${f(m)}–${f(p)}`;}catch{return'±3 days';}}
 function tSMS(){smsOn=!smsOn;document.getElementById('pill').classList.toggle('on',smsOn);document.getElementById('smsg').classList.toggle('show',smsOn);}
-function gp(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));document.getElementById(`page-${name}`).classList.add('active');btn?.classList.add('active');if(name==='history')rHist();if(name==='recap')rRecap();if(name==='transactions')rtt();}
+function gp(name,btn){if(!currentUser&&name!=='auth'){showAuthPage();return;}document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));document.getElementById(`page-${name}`).classList.add('active');btn?.classList.add('active');if(name==='history')rHist();if(name==='recap')rRecap();if(name==='transactions')rtt();}
 
 // ITEM PARSING
 async function fetchParsedItems(i,payload){
