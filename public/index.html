@@ -403,7 +403,7 @@ input.pf{display:none;}
 
 <nav>
   <div class="logo"><div class="logo-mark">$÷</div>SplitCheck</div>
-  <div id="user-area" style="display:flex;align-items:center;gap:8px;margin-right:8px"></div><div class="nav-pills">
+  <div id="user-area" style="display:flex;align-items:center;gap:8px;margin-right:8px"></div><div class="nav-pills" id="nav-pills" style="display:none">
     <button class="nav-tab active" onclick="gp('upload',this)">Upload</button>
     <button class="nav-tab hidden" id="t-split" onclick="gp('split',this)">Split <span class="badge" id="sp-badge">0</span></button>
     <button class="nav-tab hidden" id="t-txs" onclick="gp('transactions',this)">All Txs</button>
@@ -540,6 +540,7 @@ function showAuthPage(){
 function renderUserPill(user){
   const ua=document.getElementById('user-area');
   ua.innerHTML=`<div class="user-pill" onclick="confirmSignOut()"><img class="user-avatar" src="${user.picture}" referrerpolicy="no-referrer"/><span class="user-name">${user.name.split(' ')[0]}</span><div class="sync-dot" id="sync-dot"></div></div>`;
+  document.getElementById('nav-pills').style.display='';
 }
 
 function confirmSignOut(){
@@ -642,6 +643,7 @@ dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');lf
 document.getElementById('fi').addEventListener('change',e=>lf([...e.target.files]));
 
 function lf(files){
+  if(!currentUser){showAuthPage();return;}
   rows=[];sp={};sx={};// fresh start — clear everything for new upload
   pSp();try{localStorage.setItem(XK,JSON.stringify(sx));}catch(e){}
   const csvs=files.filter(f=>f.name.toLowerCase().endsWith('.csv'));
