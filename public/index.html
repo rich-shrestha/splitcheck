@@ -679,19 +679,12 @@ async function parseStatement(file){
     if(file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf')){
       payload=await getPDFPayload(file);
     }else{
-      // HEIC/HEIF not supported by Claude API — prompt user to convert
-      if(file.type==='image/heic'||file.type==='image/heif'||/\.(heic|heif)$/i.test(file.name)){
-        dz.innerHTML=`<span class="di">⚠️</span><p><strong>${file.name}</strong><br/>HEIC photos aren't supported. On iPhone go to <strong>Settings → Camera → Formats → Most Compatible</strong> to shoot in JPEG, or AirDrop as JPEG.<br/><button onclick="document.getElementById('fi').click()" style="margin-top:6px;font-size:0.7rem;color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">Upload a different file →</button></p>`;
+      const imagePayload=await prepareImagePayload(file,2400);
+      if(!imagePayload){
+        dz.innerHTML=`<span class="di">⚠️</span><p><strong>${file.name}</strong><br/>This browser could not decode the HEIC image. On iPhone go to <strong>Settings → Camera → Formats → Most Compatible</strong> to shoot in JPEG, or AirDrop as JPEG.<br/><button onclick="document.getElementById('fi').click()" style="margin-top:6px;font-size:0.7rem;color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">Upload a different file →</button></p>`;
         return;
       }
-      // detect actual mime type from file, fall back to jpeg
-      const actualMime=file.type&&file.type.startsWith('image/')?file.type:'image/jpeg';
-      const dataUrl=await new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsDataURL(file);});
-      // resizeImage always outputs JPEG via canvas; only fall back if canvas fails
-      const base64=await resizeImage(dataUrl,2400);
-      // if canvas succeeded, output is jpeg; if fell back to original, use actual type
-      const isResized=!dataUrl.split(',')[1].startsWith(base64.slice(0,20));
-      payload={image:base64,mimeType:isResized?'image/jpeg':actualMime};
+      payload={image:imagePayload.image,mimeType:imagePayload.mimeType};
     }
     const res=await fetch('/api/parse-statement',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(!res.ok){
@@ -892,12 +885,6 @@ function sRes(i,entries,warn){const b=document.getElementById(`rp-${i}`);if(!b)r
 
 function oPhoto(i,input){
   const file=input.files[0];if(!file)return;
-  if(file.type==='image/heic'||file.type==='image/heif'||/\.(heic|heif)$/i.test(file.name)){
-    const il=document.getElementById(`il-${i}`);const panel=document.getElementById(`ip-${i}`);
-    if(panel)panel.style.display='block';
-    if(il)il.innerHTML=`<div style="font-size:0.7rem;color:var(--red)">HEIC not supported — on iPhone go to Settings → Camera → Formats → Most Compatible, then reshoot or AirDrop as JPEG.</div>`;
-    return;
-  }
   if(file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf')){
     if(!sp[i])sp[i]={};sp[i].pdfName=file.name;delete sp[i].photo;pSp();
     sPDFAttach(i,file.name,null);
@@ -910,15 +897,17 @@ function oPhoto(i,input){
       sPDFAttach(i,file.name,exp.amount);
     }).catch(()=>{});
   }else{
-    const r=new FileReader();r.onload=e=>{
-      sPhoto(i,e.target.result);
-      if(!sp[i])sp[i]={};sp[i].photo=e.target.result;delete sp[i].pdfName;pSp();
-      const actualMime=file.type&&file.type.startsWith('image/')?file.type:'image/jpeg';
-      resizeImage(e.target.result,2400).then(base64=>{
-        const isResized=!e.target.result.split(',')[1].startsWith(base64.slice(0,20));
-        fetchParsedItems(i,{image:base64,mimeType:isResized?'image/jpeg':actualMime,amount:fld[i]?.amount});
-      });
-    };r.readAsDataURL(file);
+    prepareImagePayload(file,2400).then(imagePayload=>{
+      if(!imagePayload){
+        const il=document.getElementById(`il-${i}`);const panel=document.getElementById(`ip-${i}`);
+        if(panel)panel.style.display='block';
+        if(il)il.innerHTML=`<div style="font-size:0.7rem;color:var(--red)">This browser could not decode the HEIC image. On iPhone go to Settings → Camera → Formats → Most Compatible, then reshoot or AirDrop as JPEG.</div>`;
+        return;
+      }
+      sPhoto(i,imagePayload.dataUrl);
+      if(!sp[i])sp[i]={};sp[i].photo=imagePayload.dataUrl;delete sp[i].pdfName;pSp();
+      fetchParsedItems(i,{image:imagePayload.image,mimeType:imagePayload.mimeType,amount:fld[i]?.amount});
+    });
   }
 }
 
@@ -935,6 +924,29 @@ async function resizeImage(dataUrl,maxDim){
     img.onerror=()=>resolve(dataUrl.split(',')[1]);
     img.src=dataUrl;
   });
+}
+
+function isHeicFile(file){
+  return file.type==='image/heic'||file.type==='image/heif'||/\.(heic|heif)$/i.test(file.name);
+}
+
+function readFileAsDataUrl(file){
+  return new Promise(resolve=>{
+    const r=new FileReader();
+    r.onload=e=>resolve(e.target.result);
+    r.readAsDataURL(file);
+  });
+}
+
+async function prepareImagePayload(file,maxDim){
+  const dataUrl=await readFileAsDataUrl(file);
+  const actualMime=file.type&&file.type.startsWith('image/')?file.type:'image/jpeg';
+  const base64=await resizeImage(dataUrl,maxDim);
+  const sourceBase64=(dataUrl.split(',')[1]||'');
+  const isResized=base64!==sourceBase64;
+  if(isHeicFile(file)&&!isResized)return null;
+  const mimeType=isResized?'image/jpeg':actualMime;
+  return {image:base64,mimeType,dataUrl:`data:${mimeType};base64,${base64}`};
 }
 
 async function getPDFPayload(file){
