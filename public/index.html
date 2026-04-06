@@ -681,8 +681,9 @@ async function parseStatement(file){
       payload=await getPDFPayload(file);
     }else{
       const imagePayload=await prepareImagePayload(file,2400);
-      if(!imagePayload){
-        dz.innerHTML=`<span class="di">⚠️</span><p><strong>${file.name}</strong><br/>This browser could not decode the HEIC image. On iPhone go to <strong>Settings → Camera → Formats → Most Compatible</strong> to shoot in JPEG, or AirDrop as JPEG.<br/><button onclick="document.getElementById('fi').click()" style="margin-top:6px;font-size:0.7rem;color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">Upload a different file →</button></p>`;
+      if(!imagePayload?.image){
+        const detail=imagePayload?.error?`<br/><span style="font-size:0.66rem;color:var(--muted)">Decoder: ${imagePayload.error}</span>`:'';
+        dz.innerHTML=`<span class="di">⚠️</span><p><strong>${file.name}</strong><br/>This browser could not convert the HEIC image for Claude.${detail}<br/>On iPhone go to <strong>Settings → Camera → Formats → Most Compatible</strong> to shoot in JPEG, or AirDrop as JPEG.<br/><button onclick="document.getElementById('fi').click()" style="margin-top:6px;font-size:0.7rem;color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">Upload a different file →</button></p>`;
         return;
       }
       payload={image:imagePayload.image,mimeType:imagePayload.mimeType};
@@ -899,10 +900,10 @@ function oPhoto(i,input){
     }).catch(()=>{});
   }else{
     prepareImagePayload(file,2400).then(imagePayload=>{
-      if(!imagePayload){
+      if(!imagePayload?.image){
         const il=document.getElementById(`il-${i}`);const panel=document.getElementById(`ip-${i}`);
         if(panel)panel.style.display='block';
-        if(il)il.innerHTML=`<div style="font-size:0.7rem;color:var(--red)">This browser could not decode the HEIC image. On iPhone go to Settings → Camera → Formats → Most Compatible, then reshoot or AirDrop as JPEG.</div>`;
+        if(il)il.innerHTML=`<div style="font-size:0.7rem;color:var(--red)">This browser could not convert the HEIC image for Claude${imagePayload?.error?`: ${imagePayload.error}`:''}. On iPhone go to Settings → Camera → Formats → Most Compatible, then reshoot or AirDrop as JPEG.</div>`;
         return;
       }
       sPhoto(i,imagePayload.dataUrl);
@@ -947,24 +948,42 @@ function readBlobAsDataUrl(blob){
   });
 }
 
-async function prepareImagePayload(file,maxDim){
-  let dataUrl;
-  if(isHeicFile(file)){
-    try{
-      const converted=await heic2any({blob:file,toType:'image/jpeg',quality:0.92});
-      const blob=Array.isArray(converted)?converted[0]:converted;
-      if(!blob)return null;
-      dataUrl=await readBlobAsDataUrl(blob);
-    }catch(e){
-      return null;
-    }
-  }else{
-    dataUrl=await readFileAsDataUrl(file);
-  }
+async function prepareStandardImagePayload(file,maxDim){
+  const dataUrl=await readFileAsDataUrl(file);
   const actualMime=file.type&&file.type.startsWith('image/')&&!isHeicFile(file)?file.type:'image/jpeg';
   const resized=await resizeImage(dataUrl,maxDim);
   const mimeType=resized.mimeType||actualMime;
   return {image:resized.base64,mimeType,dataUrl:`data:${mimeType};base64,${resized.base64}`};
+}
+
+async function prepareImagePayload(file,maxDim){
+  if(!isHeicFile(file)){
+    return prepareStandardImagePayload(file,maxDim);
+  }
+  let convertError='';
+  if(typeof heic2any==='function'){
+    try{
+      const converted=await heic2any({blob:file,toType:'image/jpeg',quality:0.92});
+      const blob=Array.isArray(converted)?converted[0]:converted;
+      if(blob){
+        const dataUrl=await readBlobAsDataUrl(blob);
+        const resized=await resizeImage(dataUrl,maxDim);
+        return {image:resized.base64,mimeType:'image/jpeg',dataUrl:`data:image/jpeg;base64,${resized.base64}`};
+      }
+      convertError='empty conversion result';
+    }catch(e){
+      convertError=e?.message||String(e)||'heic2any conversion failed';
+    }
+  }else{
+    convertError='heic2any not loaded';
+  }
+  try{
+    const direct=await prepareStandardImagePayload(file,maxDim);
+    if(direct.mimeType==='image/jpeg')return direct;
+  }catch(e){
+    if(!convertError)convertError=e?.message||String(e)||'direct decode failed';
+  }
+  return {error:convertError||'unsupported HEIC variant'};
 }
 
 async function getPDFPayload(file){
