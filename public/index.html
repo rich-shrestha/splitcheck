@@ -714,14 +714,12 @@ async function parseStatement(file){
     showTabs();rAll();gp('split',document.getElementById('t-split'));
     // If the image looks like a single receipt (≤3 transactions), auto-attach photo + parse items
     if(unique.length<=3&&payload.image){
-      const dataUrl='data:'+(payload.mimeType||'image/jpeg')+';base64,'+payload.image;
+      const isHeic=payload.mimeType==='image/heic'||payload.mimeType==='image/heif';
+      const dataUrl=isHeic?null:'data:'+(payload.mimeType||'image/jpeg')+';base64,'+payload.image;
       fld.forEach((e,cardIdx)=>{
         const matched=unique.some(u=>gm(u).toLowerCase()===e.merchant.toLowerCase());
         if(!matched)return;
-        sPhoto(cardIdx,dataUrl);
-        if(!sp[cardIdx])sp[cardIdx]={};
-        sp[cardIdx].photo=dataUrl;
-        pSp();
+        if(dataUrl){sPhoto(cardIdx,dataUrl);if(!sp[cardIdx])sp[cardIdx]={};sp[cardIdx].photo=dataUrl;pSp();}
         fetchParsedItems(cardIdx,{image:payload.image,mimeType:payload.mimeType||'image/jpeg',amount:e.amount});
       });
     }
@@ -906,8 +904,8 @@ function oPhoto(i,input){
         if(il)il.innerHTML=`<div style="font-size:0.7rem;color:var(--red)">This browser could not convert the HEIC image for Claude${imagePayload?.error?`: ${imagePayload.error}`:''}. On iPhone go to Settings → Camera → Formats → Most Compatible, then reshoot or AirDrop as JPEG.</div>`;
         return;
       }
-      sPhoto(i,imagePayload.dataUrl);
-      if(!sp[i])sp[i]={};sp[i].photo=imagePayload.dataUrl;delete sp[i].pdfName;pSp();
+      const isHeicRaw=imagePayload.mimeType==='image/heic'||imagePayload.mimeType==='image/heif';
+      if(!isHeicRaw){sPhoto(i,imagePayload.dataUrl);if(!sp[i])sp[i]={};sp[i].photo=imagePayload.dataUrl;delete sp[i].pdfName;pSp();}
       fetchParsedItems(i,{image:imagePayload.image,mimeType:imagePayload.mimeType,amount:fld[i]?.amount});
     });
   }
@@ -1306,6 +1304,7 @@ async function fetchParsedItems(i,payload){
     const res=await fetch('/api/parse-receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const data=await res.json();
     console.log('[receipt]',res.status,data);
+    if(data._convertedJpeg){const jpegUrl=`data:image/jpeg;base64,${data._convertedJpeg}`;sPhoto(i,jpegUrl);if(!sp[i])sp[i]={};sp[i].photo=jpegUrl;pSp();}
     if(data.items?.length){if(!sp[i])sp[i]={};sp[i].parsedItems=data.items;pSp();renderItemRows(i,data.items);}
     else{const errMsg=data.error?`Error: ${data.error}`:'Could not auto-extract — add manually:';document.getElementById(`il-${i}`).innerHTML=`<div style="font-size:0.68rem;color:var(--muted);margin-bottom:6px">${errMsg}</div>`;renderItemRows(i,[{name:'',price:0},{name:'',price:0},{name:'',price:0}]);}
   }catch(e){

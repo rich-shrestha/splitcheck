@@ -8,11 +8,13 @@ export default async function handler(req, res) {
   let { image, mimeType, text, amount } = req.body;
 
   // Server-side HEIC→JPEG conversion (heic2any can't handle HEVC-encoded iPhone photos)
+  let convertedJpeg = null;
   if (image && (mimeType === 'image/heic' || mimeType === 'image/heif')) {
     try {
       const buf = Buffer.from(image, 'base64');
-      const jpegBuf = await convert({ buffer: buf, format: 'JPEG', quality: 0.9 });
-      image = Buffer.from(jpegBuf).toString('base64');
+      const jpegBuf = await convert({ buffer: buf, format: 'JPEG', quality: 0.85 });
+      convertedJpeg = Buffer.from(jpegBuf).toString('base64');
+      image = convertedJpeg;
       mimeType = 'image/jpeg';
     } catch (e) {
       return res.status(400).json({ error: `HEIC conversion failed: ${e.message}`, items: [] });
@@ -68,7 +70,8 @@ If you truly cannot find any items, return: {"merchant":"Unknown","total":0,"ite
     if (!match) return res.status(200).json({ items: [], _debug: { raw, error: data.error, status: r.status } });
     try {
       const parsed = JSON.parse(match[0]);
-      return res.status(200).json({ ...parsed, _debug: parsed.items?.length ? undefined : { raw } });
+      const extra = convertedJpeg ? { _convertedJpeg: convertedJpeg } : {};
+      return res.status(200).json({ ...parsed, ...extra, _debug: parsed.items?.length ? undefined : { raw } });
     } catch(pe) {
       return res.status(200).json({ items: [], _debug: { raw, parseError: pe.message } });
     }
