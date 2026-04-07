@@ -960,15 +960,12 @@ async function prepareImagePayload(file,maxDim){
   if(!isHeicFile(file)){
     return prepareStandardImagePayload(file,maxDim);
   }
-  // Try native canvas decode first (works on macOS where OS decodes HEIC natively)
-  let convertError='';
+  // Try native canvas decode first (works in Safari on macOS/iOS)
   try{
     const direct=await prepareStandardImagePayload(file,maxDim);
     if(direct.mimeType==='image/jpeg')return direct;
-  }catch(e){
-    convertError=e?.message||String(e)||'native decode failed';
-  }
-  // Fall back to heic2any (WebAssembly libheif — works on non-Mac browsers)
+  }catch(e){}
+  // Try heic2any (works for AVC-encoded HEIC, not HEVC/iPhone)
   if(typeof heic2any==='function'){
     try{
       const converted=await heic2any({blob:file,toType:'image/jpeg',quality:0.92});
@@ -978,14 +975,11 @@ async function prepareImagePayload(file,maxDim){
         const resized=await resizeImage(dataUrl,maxDim);
         return {image:resized.base64,mimeType:'image/jpeg',dataUrl:`data:image/jpeg;base64,${resized.base64}`};
       }
-      convertError='empty conversion result';
-    }catch(e){
-      convertError=e?.message||String(e)||'heic2any conversion failed';
-    }
-  }else{
-    if(!convertError)convertError='heic2any not loaded';
+    }catch(e){}
   }
-  return {error:convertError||'unsupported HEIC variant'};
+  // Fall back: send raw HEIC to server — API handles HEVC conversion via heic-convert
+  const dataUrl=await readFileAsDataUrl(file);
+  return {image:dataUrl.split(',')[1],mimeType:'image/heic',dataUrl};
 }
 
 async function getPDFPayload(file){

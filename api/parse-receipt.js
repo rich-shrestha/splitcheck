@@ -1,9 +1,23 @@
-export const config = { api: { bodyParser: { sizeLimit: '10mb' } } };
+import convert from 'heic-convert';
+
+export const config = { api: { bodyParser: { sizeLimit: '20mb' } } };
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { image, mimeType, text, amount } = req.body;
+  let { image, mimeType, text, amount } = req.body;
+
+  // Server-side HEIC→JPEG conversion (heic2any can't handle HEVC-encoded iPhone photos)
+  if (image && (mimeType === 'image/heic' || mimeType === 'image/heif')) {
+    try {
+      const buf = Buffer.from(image, 'base64');
+      const jpegBuf = await convert({ buffer: buf, format: 'JPEG', quality: 0.9 });
+      image = Buffer.from(jpegBuf).toString('base64');
+      mimeType = 'image/jpeg';
+    } catch (e) {
+      return res.status(400).json({ error: `HEIC conversion failed: ${e.message}`, items: [] });
+    }
+  }
   if (!image && !text) return res.status(400).json({ error: 'Need image or text' });
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
