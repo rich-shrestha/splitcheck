@@ -960,7 +960,15 @@ async function prepareImagePayload(file,maxDim){
   if(!isHeicFile(file)){
     return prepareStandardImagePayload(file,maxDim);
   }
+  // Try native canvas decode first (works on macOS where OS decodes HEIC natively)
   let convertError='';
+  try{
+    const direct=await prepareStandardImagePayload(file,maxDim);
+    if(direct.mimeType==='image/jpeg')return direct;
+  }catch(e){
+    convertError=e?.message||String(e)||'native decode failed';
+  }
+  // Fall back to heic2any (WebAssembly libheif — works on non-Mac browsers)
   if(typeof heic2any==='function'){
     try{
       const converted=await heic2any({blob:file,toType:'image/jpeg',quality:0.92});
@@ -975,13 +983,7 @@ async function prepareImagePayload(file,maxDim){
       convertError=e?.message||String(e)||'heic2any conversion failed';
     }
   }else{
-    convertError='heic2any not loaded';
-  }
-  try{
-    const direct=await prepareStandardImagePayload(file,maxDim);
-    if(direct.mimeType==='image/jpeg')return direct;
-  }catch(e){
-    if(!convertError)convertError=e?.message||String(e)||'direct decode failed';
+    if(!convertError)convertError='heic2any not loaded';
   }
   return {error:convertError||'unsupported HEIC variant'};
 }
