@@ -6,7 +6,7 @@
     "deploy": "git add -A && git commit -m 'update' && git push && npx vercel --prod"
   },
   "devDependencies": {
-    "vercel": "^33.0.0"
+    "vercel": "^63.1.0"
   },
   "dependencies": {
     "@upstash/redis": "^1.37.0",
