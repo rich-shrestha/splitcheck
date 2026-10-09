@@ -1,4 +1,4 @@
-import convert from 'heic-convert';
+import { normalizeImage } from '../lib/normalize-image.js';
 
 export const config = { api: { bodyParser: { sizeLimit: '20mb' } } };
 
@@ -8,16 +8,11 @@ export default async function handler(req, res) {
   let { image, mimeType } = req.body;
   if (!image) return res.status(400).json({ error: 'Need image' });
 
-  // Server-side HEIC→JPEG conversion (heic2any can't handle HEVC-encoded iPhone photos)
-  if (mimeType === 'image/heic' || mimeType === 'image/heif') {
-    try {
-      const buf = Buffer.from(image, 'base64');
-      const jpegBuf = await convert({ buffer: buf, format: 'JPEG', quality: 0.9 });
-      image = Buffer.from(jpegBuf).toString('base64');
-      mimeType = 'image/jpeg';
-    } catch (e) {
-      return res.status(400).json({ error: `HEIC conversion failed: ${e.message}` });
-    }
+  // Server-side HEIC→JPEG conversion (heic2any can't handle HEVC-encoded iPhone photos) + downsizing
+  try {
+    ({ image, mimeType } = await normalizeImage(image, mimeType));
+  } catch (e) {
+    return res.status(400).json({ error: `Image conversion failed: ${e.message}` });
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;

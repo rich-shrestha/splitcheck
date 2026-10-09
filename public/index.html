@@ -691,7 +691,7 @@ async function parseStatement(file){
     const res=await fetch('/api/parse-statement',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(!res.ok){
       const errText=await res.text().catch(()=>'');
-      dz.innerHTML=`<span class="di">⚠️</span><p><strong>${file.name}</strong><br/>Upload failed (${res.status}) — try again or use CSV export<br/><button onclick="document.getElementById('fi').click()" style="margin-top:6px;font-size:0.7rem;color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">Try again →</button></p>`;
+      dz.innerHTML=`<span class="di">⚠️</span><p><strong>${file.name}</strong><br/>${res.status===413?'Image is too large — try a screenshot or a smaller photo':`Upload failed (${res.status}) — try again or use CSV export`}<br/><button onclick="document.getElementById('fi').click()" style="margin-top:6px;font-size:0.7rem;color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">Try again →</button></p>`;
       return;
     }
     const data=await res.json();
@@ -911,16 +911,23 @@ function oPhoto(i,input){
   }
 }
 
+// Vercel rejects request bodies over 4.5MB; keep base64 payloads safely under that
+const MAX_B64=3.5*1024*1024;
+function encodeCanvas(src,maxDim,quality){
+  let scale=Math.min(1,maxDim/Math.max(src.width,src.height));
+  for(;;){
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.round(src.width*scale);canvas.height=Math.round(src.height*scale);
+    canvas.getContext('2d').drawImage(src,0,0,canvas.width,canvas.height);
+    const base64=canvas.toDataURL('image/jpeg',quality).split(',')[1];
+    if(base64.length<=MAX_B64||scale<0.1)return base64;
+    scale*=0.75;quality=Math.max(0.7,quality-0.05);
+  }
+}
 async function resizeImage(dataUrl,maxDim){
   return new Promise(resolve=>{
     const img=new Image();
-    img.onload=()=>{
-      const scale=Math.min(1,maxDim/Math.max(img.width,img.height));
-      const canvas=document.createElement('canvas');
-      canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);
-      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
-      resolve({base64:canvas.toDataURL('image/jpeg',0.92).split(',')[1],mimeType:'image/jpeg'});
-    };
+    img.onload=()=>resolve({base64:encodeCanvas(img,maxDim,0.92),mimeType:'image/jpeg'});
     img.onerror=()=>resolve({base64:dataUrl.split(',')[1],mimeType:dataUrl.split(';')[0].slice(5)||'image/jpeg'});
     img.src=dataUrl;
   });
@@ -977,7 +984,9 @@ async function prepareImagePayload(file,maxDim){
   }
   // Fall back: send raw HEIC to server — API handles HEVC conversion via heic-convert
   const dataUrl=await readFileAsDataUrl(file);
-  return {image:dataUrl.split(',')[1],mimeType:'image/heic',dataUrl};
+  const image=dataUrl.split(',')[1];
+  if(image.length>4.2*1024*1024)return {error:'image is too large to upload unconverted'};
+  return {image,mimeType:'image/heic',dataUrl};
 }
 
 async function getPDFPayload(file){
@@ -1000,7 +1009,8 @@ async function getPDFPayload(file){
   const ctx=combined.getContext('2d');
   let y=0;
   for(const c of pageCanvases){ctx.drawImage(c,0,y);y+=c.height;}
-  const base64=combined.toDataURL('image/jpeg',0.82).split(',')[1];
+  // Claude rejects images over 8000px on a side
+  const base64=encodeCanvas(combined,7900,0.82);
   return{image:base64,mimeType:'image/jpeg'};
 }
 function sPhoto(i,url){const col=document.getElementById(`pc-${i}`);if(!col)return;document.getElementById(`pm-${i}`)?.remove();col.querySelector('.pdf-ind')?.remove();if(!col.querySelector('img.rc')){const img=Object.assign(document.createElement('img'),{className:'rc',src:url});const g=Object.assign(document.createElement('div'),{className:'pgrd'});col.prepend(g);col.prepend(img);}else col.querySelector('img.rc').src=url;}
@@ -1302,7 +1312,7 @@ async function fetchParsedItems(i,payload){
   document.getElementById(`il-${i}`).innerHTML='<div class="items-parsing"><div class="ld" style="border-color:rgba(0,0,0,0.12);border-top-color:var(--muted)"></div> Parsing receipt…</div>';
   try{
     const res=await fetch('/api/parse-receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    const data=await res.json();
+    const data=await res.json().catch(()=>({items:[],error:res.status===413?'Image is too large — try a smaller photo':`Upload failed (${res.status})`}));
     console.log('[receipt]',res.status,data);
     if(data._convertedJpeg){const jpegUrl=`data:image/jpeg;base64,${data._convertedJpeg}`;sPhoto(i,jpegUrl);if(!sp[i])sp[i]={};sp[i].photo=jpegUrl;pSp();}
     if(data.items?.length){if(!sp[i])sp[i]={};sp[i].parsedItems=data.items;pSp();renderItemRows(i,data.items);}

@@ -1,4 +1,4 @@
-import convert from 'heic-convert';
+import { normalizeImage } from '../lib/normalize-image.js';
 
 export const config = { api: { bodyParser: { sizeLimit: '20mb' } } };
 
@@ -7,17 +7,16 @@ export default async function handler(req, res) {
 
   let { image, mimeType, text, amount } = req.body;
 
-  // Server-side HEIC→JPEG conversion (heic2any can't handle HEVC-encoded iPhone photos)
+  // Server-side HEIC→JPEG conversion (heic2any can't handle HEVC-encoded iPhone photos) + downsizing
   let convertedJpeg = null;
-  if (image && (mimeType === 'image/heic' || mimeType === 'image/heif')) {
+  if (image) {
     try {
-      const buf = Buffer.from(image, 'base64');
-      const jpegBuf = await convert({ buffer: buf, format: 'JPEG', quality: 0.85 });
-      convertedJpeg = Buffer.from(jpegBuf).toString('base64');
-      image = convertedJpeg;
-      mimeType = 'image/jpeg';
+      const n = await normalizeImage(image, mimeType);
+      image = n.image;
+      mimeType = n.mimeType;
+      if (n.converted) convertedJpeg = image;
     } catch (e) {
-      return res.status(400).json({ error: `HEIC conversion failed: ${e.message}`, items: [] });
+      return res.status(400).json({ error: `Image conversion failed: ${e.message}`, items: [] });
     }
   }
   if (!image && !text) return res.status(400).json({ error: 'Need image or text' });
